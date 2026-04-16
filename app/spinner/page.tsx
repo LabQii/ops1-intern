@@ -9,7 +9,7 @@ const INITIAL_SEGMENTS = [
   "Regina",
   "David",
   "Iqbal",
-  "Hanifah",
+  "Ifah",
 ];
 
 const COLORS = [
@@ -198,13 +198,13 @@ export default function SpinnerGame() {
   useEffect(() => {
     let animationId: number;
     let lastTime = performance.now();
-    
+
     if (!isSpinning && !result) {
       const updateIdleSpin = (time: number) => {
         const deltaTime = time - lastTime;
         lastTime = time;
         // Advance rotation (e.g. 15 degrees per second)
-        setRotation(r => r + (15 * deltaTime / 1000)); 
+        setRotation(r => r + (15 * deltaTime / 1000));
         animationId = requestAnimationFrame(updateIdleSpin);
       };
       animationId = requestAnimationFrame(updateIdleSpin);
@@ -423,8 +423,8 @@ export default function SpinnerGame() {
             {isSpinning
               ? "SPINNING..."
               : availableSegments.length === 0
-              ? "DONE!"
-              : <span className="flex items-center gap-3">SPIN ME! <FerrisWheel className="w-8 h-8" /></span>
+                ? "DONE!"
+                : <span className="flex items-center gap-3">SPIN ME! <FerrisWheel className="w-8 h-8" /></span>
             }
           </button>
 
