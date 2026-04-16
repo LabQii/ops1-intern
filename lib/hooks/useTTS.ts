@@ -2,7 +2,8 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-type TTSStatus = 'idle' | 'loading' | 'playing' | 'error';
+export type TTSMode = 'hybrid' | 'gemini' | 'synthetic';
+export type TTSStatus = 'idle' | 'loading' | 'playing' | 'error';
 
 interface TTSResponse {
   audio: string;
@@ -59,12 +60,26 @@ function decodeBase64PCMtoAudioBuffer(
 export function useTTS() {
   const [status, setStatus] = useState<TTSStatus>('idle');
   const [playingMessageId, setPlayingMessageId] = useState<string | null>(null);
+  const [mode, _setMode] = useState<TTSMode>('hybrid');
+
+  // Hydrate mode from localStorage after mount (avoids SSR mismatch)
+  useEffect(() => {
+    const saved = localStorage.getItem('tts-mode');
+    if (saved === 'gemini' || saved === 'synthetic' || saved === 'hybrid') {
+      _setMode(saved);
+    }
+  }, []);
+
+  const setMode = useCallback((newMode: TTSMode) => {
+    _setMode(newMode);
+    localStorage.setItem('tts-mode', newMode);
+  }, []);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
 
-  // Load browser voices for fallback
+  // Load browser voices
   useEffect(() => {
     if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
@@ -91,17 +106,14 @@ export function useTTS() {
   }, []);
 
   const stop = useCallback(() => {
-    // Stop AudioContext source
     if (sourceNodeRef.current) {
       try { sourceNodeRef.current.stop(); } catch { /* */ }
       sourceNodeRef.current.disconnect();
       sourceNodeRef.current = null;
     }
-    // Stop speechSynthesis
     if (typeof window !== 'undefined' && window.speechSynthesis) {
       window.speechSynthesis.cancel();
     }
-    // Abort fetch
     if (abortRef.current) {
       abortRef.current.abort();
       abortRef.current = null;
@@ -134,8 +146,8 @@ export function useTTS() {
     [getAudioContext]
   );
 
-  // --- Fallback: play via browser speechSynthesis ---
-  const playFallback = useCallback(
+  // --- Play via browser speechSynthesis ---
+  const playSynthetic = useCallback(
     (text: string, messageId: string) => {
       if (typeof window === 'undefined' || !window.speechSynthesis) return;
 
@@ -164,10 +176,51 @@ export function useTTS() {
         setPlayingMessageId(null);
       };
 
-      console.log('TTS fallback: using browser speechSynthesis');
+      setStatus('playing');
+      setPlayingMessageId(messageId);
       window.speechSynthesis.speak(utterance);
     },
     []
+  );
+
+  // --- Play via Gemini API ---
+  const playGemini = useCallback(
+    async (text: string, messageId: string): Promise<boolean> => {
+      // Check cache first
+      const cached = audioCache.get(messageId);
+      if (cached) {
+        await playAudioBuffer(cached, messageId);
+        return true;
+      }
+
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      const res = await fetch('/api/tts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) throw new Error(`API error ${res.status}`);
+
+      const data: TTSResponse = await res.json();
+      const ctx = getAudioContext();
+
+      const audioBuffer = decodeBase64PCMtoAudioBuffer(
+        ctx,
+        data.audio,
+        data.sampleRate,
+        data.bitsPerSample,
+        data.numChannels
+      );
+
+      audioCache.set(messageId, audioBuffer);
+      await playAudioBuffer(audioBuffer, messageId);
+      return true;
+    },
+    [playAudioBuffer, getAudioContext]
   );
 
   // --- Main play function ---
@@ -180,61 +233,37 @@ export function useTTS() {
       }
 
       stop();
-
-      // Check cache — instant replay
-      const cached = audioCache.get(messageId);
-      if (cached) {
-        try {
-          await playAudioBuffer(cached, messageId);
-        } catch {
-          setStatus('error');
-          setPlayingMessageId(null);
-        }
-        return;
-      }
-
-      // Try Gemini TTS
       setStatus('loading');
       setPlayingMessageId(messageId);
 
-      const controller = new AbortController();
-      abortRef.current = controller;
-
       try {
-        const res = await fetch('/api/tts', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text }),
-          signal: controller.signal,
-        });
-
-        if (!res.ok) {
-          throw new Error(`API error ${res.status}`);
+        if (mode === 'synthetic') {
+          playSynthetic(text, messageId);
+          return;
         }
 
-        const data: TTSResponse = await res.json();
-        const ctx = getAudioContext();
+        if (mode === 'gemini') {
+          await playGemini(text, messageId);
+          return;
+        }
 
-        const audioBuffer = decodeBase64PCMtoAudioBuffer(
-          ctx,
-          data.audio,
-          data.sampleRate,
-          data.bitsPerSample,
-          data.numChannels
-        );
-
-        audioCache.set(messageId, audioBuffer);
-        await playAudioBuffer(audioBuffer, messageId);
+        // Hybrid: try Gemini, fallback to synthetic
+        try {
+          await playGemini(text, messageId);
+        } catch (geminiErr) {
+          if (geminiErr instanceof Error && geminiErr.name === 'AbortError') return;
+          console.warn('Gemini TTS failed, fallback to browser:', geminiErr);
+          playSynthetic(text, messageId);
+        }
       } catch (err: unknown) {
         if (err instanceof Error && err.name === 'AbortError') return;
-
-        // Fallback to browser speechSynthesis
-        console.warn('Gemini TTS failed, falling back to browser voice:', err);
-        playFallback(text, messageId);
+        console.error('TTS error:', err);
+        setStatus('error');
+        setPlayingMessageId(null);
       }
     },
-    [playingMessageId, status, stop, playAudioBuffer, getAudioContext, playFallback]
+    [playingMessageId, status, stop, mode, playSynthetic, playGemini]
   );
 
-  return { status, playingMessageId, play, stop };
+  return { status, playingMessageId, mode, setMode, play, stop };
 }

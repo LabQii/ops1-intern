@@ -8,7 +8,7 @@ import TypingIndicator from './TypingIndicator';
 import MessageInput from './MessageInput';
 import Toast from '@/components/ui/Toast';
 import { IconDocument, IconBot, IconVolume, IconVolumeOff } from '@/components/ui/Icons';
-import { useTTS } from '@/lib/hooks/useTTS';
+import { useTTS, TTSMode } from '@/lib/hooks/useTTS';
 
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -21,19 +21,25 @@ const WELCOME_MSG: Message = {
   timestamp: new Date(),
 };
 
+const MODE_LABELS: Record<TTSMode, string> = {
+  hybrid: 'Hybrid',
+  gemini: 'Gemini AI',
+  synthetic: 'Browser',
+};
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [activeDocs, setActiveDocs] = useState<number>(0);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [autoTTS, setAutoTTS] = useState(true);
+  const [showModeMenu, setShowModeMenu] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastFinishedIdRef = useRef<string | null>(null);
 
-  const { status: ttsStatus, playingMessageId, play: playTTS, stop: stopTTS } = useTTS();
+  const { status: ttsStatus, playingMessageId, mode: ttsMode, setMode: setTTSMode, play: playTTS, stop: stopTTS } = useTTS();
 
   useEffect(() => {
-    // Fetch available documents count
     fetch('/api/admin/documents')
       .then((res) => res.json())
       .then((data) => {
@@ -55,23 +61,26 @@ export default function ChatInterface() {
     });
   }, [messages, isTyping]);
 
-  // Auto-play TTS when an assistant message finishes streaming
+  // Keep a stable ref to playTTS so effects don't re-trigger on mode change
+  const playTTSRef = useRef(playTTS);
+  useEffect(() => { playTTSRef.current = playTTS; }, [playTTS]);
+
+  // Auto-play TTS for new assistant messages (non-welcome)
+  // Uses ref for playTTS to avoid re-triggering when mode changes
   useEffect(() => {
     if (!autoTTS) return;
 
     const lastMsg = messages[messages.length - 1];
-    if (
-      lastMsg &&
-      lastMsg.role === 'assistant' &&
-      lastMsg.id !== 'welcome' &&
-      !lastMsg.isStreaming &&
-      lastMsg.content &&
-      lastMsg.id !== lastFinishedIdRef.current
-    ) {
+    if (!lastMsg || lastMsg.role !== 'assistant') return;
+    if (lastMsg.id === 'welcome') return;
+    if (lastMsg.isStreaming) return;
+    if (!lastMsg.content) return;
+
+    if (lastMsg.id !== lastFinishedIdRef.current) {
       lastFinishedIdRef.current = lastMsg.id;
-      playTTS(lastMsg.content, lastMsg.id);
+      playTTSRef.current(lastMsg.content, lastMsg.id);
     }
-  }, [messages, autoTTS, playTTS]);
+  }, [messages, autoTTS]);
 
   const addToast = useCallback((type: ToastMessage['type'], message: string) => {
     const id = generateId();
@@ -90,9 +99,7 @@ export default function ChatInterface() {
       timestamp: new Date(),
     };
 
-    // Stop any playing TTS when user sends a new message
     stopTTS();
-
     setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
 
@@ -167,6 +174,12 @@ export default function ChatInterface() {
     [playTTS]
   );
 
+  const handleModeSelect = (newMode: TTSMode) => {
+    setTTSMode(newMode);
+    setShowModeMenu(false);
+    addToast('info', `Mode suara: ${MODE_LABELS[newMode]}`);
+  };
+
   const isDisabled = isTyping;
 
   return (
@@ -185,7 +198,59 @@ export default function ChatInterface() {
           <span className="text-xs text-white/35 tracking-wide">OPS-1 AI aktif</span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
+          {/* TTS Mode Selector */}
+          <div className="relative">
+            <motion.button
+              onClick={() => setShowModeMenu(!showModeMenu)}
+              whileTap={{ scale: 0.95 }}
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/4 border border-white/10 text-white/40 hover:text-white/60 hover:border-white/20 transition-all text-[11px] font-medium"
+            >
+              <span>🎤</span>
+              <span>{MODE_LABELS[ttsMode]}</span>
+              <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" className={`transition-transform ${showModeMenu ? 'rotate-180' : ''}`}>
+                <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+              </svg>
+            </motion.button>
+
+            <AnimatePresence>
+              {showModeMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute right-0 top-full mt-1 z-50 bg-[#1a1f2e] border border-white/12 rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
+                >
+                  {(['hybrid', 'gemini', 'synthetic'] as TTSMode[]).map((m) => (
+                    <button
+                      key={m}
+                      onClick={() => handleModeSelect(m)}
+                      className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${
+                        ttsMode === m
+                          ? 'bg-blue-primary/15 text-blue-light'
+                          : 'text-white/50 hover:bg-white/5 hover:text-white/70'
+                      }`}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
+                        background: ttsMode === m ? '#60a5fa' : 'transparent',
+                        border: ttsMode === m ? 'none' : '1px solid rgba(255,255,255,0.2)',
+                      }} />
+                      <div>
+                        <div className="font-medium">{MODE_LABELS[m]}</div>
+                        <div className="text-[10px] text-white/25 mt-0.5">
+                          {m === 'hybrid' && 'Gemini + fallback browser'}
+                          {m === 'gemini' && 'Suara natural Gemini AI'}
+                          {m === 'synthetic' && 'Suara browser (instant)'}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
           {/* Auto TTS toggle */}
           <motion.button
             onClick={() => {
@@ -206,7 +271,7 @@ export default function ChatInterface() {
               <IconVolumeOff size={11} strokeWidth={2} />
             )}
             <span className="text-[11px] font-medium">
-              {autoTTS ? 'Suara ON' : 'Suara OFF'}
+              {autoTTS ? 'ON' : 'OFF'}
             </span>
           </motion.button>
 
@@ -217,11 +282,16 @@ export default function ChatInterface() {
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/8 border border-emerald-500/20"
             >
               <IconDocument size={11} strokeWidth={2} className="text-emerald-400" />
-              <span className="text-[11px] text-emerald-400 font-medium">{activeDocs} Dokumen aktif</span>
+              <span className="text-[11px] text-emerald-400 font-medium">{activeDocs} Dokumen</span>
             </motion.div>
           )}
         </div>
       </div>
+
+      {/* Click outside to close mode menu */}
+      {showModeMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowModeMenu(false)} />
+      )}
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
