@@ -15,18 +15,31 @@ interface Document {
   created_at: string;
 }
 
+interface CacheEntry {
+  id: string;
+  question_key: string;
+  original_question: string;
+  response_text: string;
+  has_audio: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 export default function AdminDashboard() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '' });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '', type: 'doc' as 'doc' | 'cache' | 'cache-all' });
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [cacheEntries, setCacheEntries] = useState<CacheEntry[]>([]);
+  const [isCacheLoading, setIsCacheLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
   useEffect(() => {
     fetchDocuments();
+    fetchCache();
   }, []);
 
   const fetchDocuments = async () => {
@@ -97,11 +110,53 @@ export default function AdminDashboard() {
   };
 
   const promptDelete = (id: string, name: string) => {
-    setDeleteModal({ isOpen: true, id, name });
+    setDeleteModal({ isOpen: true, id, name, type: 'doc' });
   };
 
   const confirmDelete = async () => {
-    const { id } = deleteModal;
+    const { id, type } = deleteModal;
+
+    if (type === 'cache-all') {
+      setIsDeleting(true);
+      try {
+        const res = await fetch('/api/admin/cache?all=true', { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          addToast('success', 'Semua cache berhasil dihapus');
+          fetchCache();
+        } else {
+          addToast('error', data.error || 'Gagal menghapus');
+        }
+      } catch {
+        addToast('error', 'Kesalahan server');
+      } finally {
+        setIsDeleting(false);
+        setDeleteModal({ isOpen: false, id: '', name: '', type: 'doc' });
+      }
+      return;
+    }
+
+    if (type === 'cache') {
+      setIsDeleting(true);
+      try {
+        const res = await fetch(`/api/admin/cache?id=${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          addToast('success', 'Cache entry berhasil dihapus');
+          fetchCache();
+        } else {
+          addToast('error', data.error || 'Gagal menghapus');
+        }
+      } catch {
+        addToast('error', 'Kesalahan server');
+      } finally {
+        setIsDeleting(false);
+        setDeleteModal({ isOpen: false, id: '', name: '', type: 'doc' });
+      }
+      return;
+    }
+
+    // Document delete
     setIsDeleting(true);
     try {
       const res = await fetch(`/api/admin/documents?id=${id}`, { method: 'DELETE' });
@@ -116,7 +171,21 @@ export default function AdminDashboard() {
       addToast('error', 'Kesalahan server saat menghapus');
     } finally {
       setIsDeleting(false);
-      setDeleteModal({ isOpen: false, id: '', name: '' });
+      setDeleteModal({ isOpen: false, id: '', name: '', type: 'doc' });
+    }
+  };
+
+  // --- Cache Management ---
+  const fetchCache = async () => {
+    try {
+      const res = await fetch('/api/admin/cache');
+      if (res.status === 401) return;
+      const data = await res.json();
+      if (data.success) setCacheEntries(data.items);
+    } catch {
+      // silent
+    } finally {
+      setIsCacheLoading(false);
     }
   };
 
@@ -126,9 +195,15 @@ export default function AdminDashboard() {
       <ConfirmModal
         isOpen={deleteModal.isOpen}
         title="Hapus Dokumen"
-        message={`Apakah kamu yakin ingin menghapus "${deleteModal.name}"? File ini tidak akan bisa digunakan sebagai konteks RAG lagi.`}
+        message={
+          deleteModal.type === 'cache-all'
+            ? 'Apakah kamu yakin ingin menghapus SEMUA cache? AI akan menghasilkan jawaban dan suara baru untuk semua pertanyaan.'
+            : deleteModal.type === 'cache'
+            ? `Hapus cache untuk "${deleteModal.name}"? Pertanyaan ini akan dijawab ulang oleh AI.`
+            : `Apakah kamu yakin ingin menghapus "${deleteModal.name}"? File ini tidak akan bisa digunakan sebagai konteks RAG lagi.`
+        }
         onConfirm={confirmDelete}
-        onCancel={() => setDeleteModal({ isOpen: false, id: '', name: '' })}
+        onCancel={() => setDeleteModal({ isOpen: false, id: '', name: '', type: 'doc' })}
         isLoading={isDeleting}
       />
       
@@ -222,6 +297,89 @@ export default function AdminDashboard() {
                     >
                       <IconTrash size={18} strokeWidth={1.5} />
                     </button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {/* Response Cache Section */}
+        <div className="bg-white/4 border border-white/8 rounded-3xl p-6 md:p-8 backdrop-blur-md relative overflow-hidden mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-white">Response Cache</h2>
+              <p className="text-white/40 text-sm mt-1">Jawaban & suara yang tersimpan ({cacheEntries.length} entri)</p>
+            </div>
+
+            {cacheEntries.length > 0 && (
+              <motion.button
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setDeleteModal({ isOpen: true, id: '', name: '', type: 'cache-all' })}
+                className="px-4 py-2 bg-red-500/10 text-red-400 border border-red-500/20 rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-red-500/20 transition-all"
+              >
+                <IconTrash size={16} strokeWidth={1.5} />
+                Hapus Semua
+              </motion.button>
+            )}
+          </div>
+
+          {isCacheLoading ? (
+            <div className="py-12 flex justify-center">
+              <div className="w-8 h-8 border-2 border-blue-primary/30 border-t-blue-primary rounded-full animate-spin" />
+            </div>
+          ) : cacheEntries.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed border-white/10 rounded-2xl bg-white/2">
+              <p className="text-white/50">Belum ada jawaban yang di-cache.</p>
+              <p className="text-white/30 text-sm mt-1">Jawaban AI akan otomatis tersimpan saat user bertanya.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <AnimatePresence>
+                {cacheEntries.map((entry) => (
+                  <motion.div
+                    key={entry.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="p-4 rounded-2xl bg-white/5 border border-white/10 group hover:border-white/20 transition-colors"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        {/* Question */}
+                        <div className="flex items-center gap-2 mb-2">
+                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-blue-primary/15 text-blue-light font-medium">Q</span>
+                          <p className="text-white font-medium text-sm truncate">{entry.original_question}</p>
+                        </div>
+
+                        {/* Response preview */}
+                        <p className="text-white/50 text-xs line-clamp-2 ml-7">
+                          {entry.response_text.slice(0, 200)}...
+                        </p>
+
+                        {/* Meta */}
+                        <div className="flex items-center gap-3 mt-2 ml-7">
+                          <span className="text-[10px] text-white/30">
+                            {new Date(entry.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          {entry.has_audio ? (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">🔊 Audio tersimpan</span>
+                          ) : (
+                            <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/5 text-white/30 border border-white/10">Tanpa audio</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Delete button */}
+                      <button
+                        onClick={() => setDeleteModal({ isOpen: true, id: entry.id, name: entry.original_question, type: 'cache' })}
+                        className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all border border-transparent hover:border-red-500/30 flex-shrink-0"
+                        title="Hapus cache"
+                      >
+                        <IconTrash size={16} strokeWidth={1.5} />
+                      </button>
+                    </div>
                   </motion.div>
                 ))}
               </AnimatePresence>

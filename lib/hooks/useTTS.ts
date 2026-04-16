@@ -75,6 +75,7 @@ export function useTTS() {
     localStorage.setItem('tts-mode', newMode);
   }, []);
   const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
@@ -128,15 +129,23 @@ export function useTTS() {
       const ctx = getAudioContext();
       if (ctx.state === 'suspended') await ctx.resume();
 
+      // Create analyser for waveform visualization
+      const analyser = ctx.createAnalyser();
+      analyser.fftSize = 256;
+      analyser.smoothingTimeConstant = 0.8;
+      analyserRef.current = analyser;
+
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
-      source.connect(ctx.destination);
+      source.connect(analyser);
+      analyser.connect(ctx.destination);
       sourceNodeRef.current = source;
 
       source.onended = () => {
         setStatus('idle');
         setPlayingMessageId(null);
         sourceNodeRef.current = null;
+        analyserRef.current = null;
       };
 
       setStatus('playing');
@@ -265,5 +274,5 @@ export function useTTS() {
     [playingMessageId, status, stop, mode, playSynthetic, playGemini]
   );
 
-  return { status, playingMessageId, mode, setMode, play, stop };
+  return { status, playingMessageId, mode, setMode, play, stop, analyserRef };
 }

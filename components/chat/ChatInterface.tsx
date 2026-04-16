@@ -9,6 +9,7 @@ import MessageInput from './MessageInput';
 import Toast from '@/components/ui/Toast';
 import { IconDocument, IconBot, IconVolume, IconVolumeOff } from '@/components/ui/Icons';
 import { useTTS, TTSMode } from '@/lib/hooks/useTTS';
+import VoiceVisualizer from './VoiceVisualizer';
 
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -37,7 +38,7 @@ export default function ChatInterface() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastFinishedIdRef = useRef<string | null>(null);
 
-  const { status: ttsStatus, playingMessageId, mode: ttsMode, setMode: setTTSMode, play: playTTS, stop: stopTTS } = useTTS();
+  const { status: ttsStatus, playingMessageId, mode: ttsMode, setMode: setTTSMode, play: playTTS, stop: stopTTS, analyserRef } = useTTS();
 
   useEffect(() => {
     fetch('/api/admin/documents')
@@ -183,144 +184,156 @@ export default function ChatInterface() {
   const isDisabled = isTyping;
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] pt-16">
+    <div className="flex h-[calc(100vh-64px)] pt-16">
       <Toast toasts={toasts} onRemove={removeToast} />
 
-      {/* Status bar */}
-      <div className="flex items-center justify-between px-4 py-2 border-b border-white/6 bg-navy-dark/40">
-        <div className="flex items-center gap-2">
-          <motion.div
-            className="w-1.5 h-1.5 rounded-full bg-emerald-400"
-            animate={{ opacity: [1, 0.4, 1] }}
-            transition={{ duration: 2.5, repeat: Infinity }}
-          />
-          <IconBot size={13} strokeWidth={1.5} className="text-white/30" />
-          <span className="text-xs text-white/35 tracking-wide">OPS-1 AI aktif</span>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* TTS Mode Selector */}
-          <div className="relative">
-            <motion.button
-              onClick={() => setShowModeMenu(!showModeMenu)}
-              whileTap={{ scale: 0.95 }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/4 border border-white/10 text-white/40 hover:text-white/60 hover:border-white/20 transition-all text-[11px] font-medium"
-            >
-              <span>🎤</span>
-              <span>{MODE_LABELS[ttsMode]}</span>
-              <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" className={`transition-transform ${showModeMenu ? 'rotate-180' : ''}`}>
-                <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
-              </svg>
-            </motion.button>
-
-            <AnimatePresence>
-              {showModeMenu && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  className="absolute right-0 top-full mt-1 z-50 bg-[#1a1f2e] border border-white/12 rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
-                >
-                  {(['hybrid', 'gemini', 'synthetic'] as TTSMode[]).map((m) => (
-                    <button
-                      key={m}
-                      onClick={() => handleModeSelect(m)}
-                      className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${
-                        ttsMode === m
-                          ? 'bg-blue-primary/15 text-blue-light'
-                          : 'text-white/50 hover:bg-white/5 hover:text-white/70'
-                      }`}
-                    >
-                      <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
-                        background: ttsMode === m ? '#60a5fa' : 'transparent',
-                        border: ttsMode === m ? 'none' : '1px solid rgba(255,255,255,0.2)',
-                      }} />
-                      <div>
-                        <div className="font-medium">{MODE_LABELS[m]}</div>
-                        <div className="text-[10px] text-white/25 mt-0.5">
-                          {m === 'hybrid' && 'Gemini + fallback browser'}
-                          {m === 'gemini' && 'Suara natural Gemini AI'}
-                          {m === 'synthetic' && 'Suara browser (instant)'}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+      {/* Left: Chat section */}
+      <div className="flex flex-col flex-1 min-w-0">
+        {/* Status bar */}
+        <div className="flex items-center justify-between px-4 py-2 border-b border-white/6 bg-navy-dark/40">
+          <div className="flex items-center gap-2">
+            <motion.div
+              className="w-1.5 h-1.5 rounded-full bg-emerald-400"
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 2.5, repeat: Infinity }}
+            />
+            <IconBot size={13} strokeWidth={1.5} className="text-white/30" />
+            <span className="text-xs text-white/35 tracking-wide">OPS-1 AI aktif</span>
           </div>
 
-          {/* Auto TTS toggle */}
-          <motion.button
-            onClick={() => {
-              setAutoTTS((prev) => !prev);
-              if (autoTTS) stopTTS();
-            }}
-            whileTap={{ scale: 0.92 }}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all ${
-              autoTTS
-                ? 'bg-blue-primary/10 border-blue-primary/25 text-blue-light'
-                : 'bg-white/4 border-white/10 text-white/30 hover:text-white/50'
-            }`}
-            title={autoTTS ? 'Auto-play suara aktif' : 'Auto-play suara nonaktif'}
-          >
-            {autoTTS ? (
-              <IconVolume size={11} strokeWidth={2} />
-            ) : (
-              <IconVolumeOff size={11} strokeWidth={2} />
-            )}
-            <span className="text-[11px] font-medium">
-              {autoTTS ? 'ON' : 'OFF'}
-            </span>
-          </motion.button>
+          <div className="flex items-center gap-2">
+            {/* TTS Mode Selector */}
+            <div className="relative">
+              <motion.button
+                onClick={() => setShowModeMenu(!showModeMenu)}
+                whileTap={{ scale: 0.95 }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/4 border border-white/10 text-white/40 hover:text-white/60 hover:border-white/20 transition-all text-[11px] font-medium"
+              >
+                <span>🎤</span>
+                <span>{MODE_LABELS[ttsMode]}</span>
+                <svg width="8" height="8" viewBox="0 0 8 8" fill="currentColor" className={`transition-transform ${showModeMenu ? 'rotate-180' : ''}`}>
+                  <path d="M1 2.5L4 5.5L7 2.5" stroke="currentColor" strokeWidth="1.5" fill="none" />
+                </svg>
+              </motion.button>
 
-          {activeDocs > 0 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/8 border border-emerald-500/20"
+              <AnimatePresence>
+                {showModeMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.95 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute right-0 top-full mt-1 z-50 bg-[#1a1f2e] border border-white/12 rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
+                  >
+                    {(['hybrid', 'gemini', 'synthetic'] as TTSMode[]).map((m) => (
+                      <button
+                        key={m}
+                        onClick={() => handleModeSelect(m)}
+                        className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${
+                          ttsMode === m
+                            ? 'bg-blue-primary/15 text-blue-light'
+                            : 'text-white/50 hover:bg-white/5 hover:text-white/70'
+                        }`}
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
+                          background: ttsMode === m ? '#60a5fa' : 'transparent',
+                          border: ttsMode === m ? 'none' : '1px solid rgba(255,255,255,0.2)',
+                        }} />
+                        <div>
+                          <div className="font-medium">{MODE_LABELS[m]}</div>
+                          <div className="text-[10px] text-white/25 mt-0.5">
+                            {m === 'hybrid' && 'Gemini + fallback browser'}
+                            {m === 'gemini' && 'Suara natural Gemini AI'}
+                            {m === 'synthetic' && 'Suara browser (instant)'}
+                          </div>
+                        </div>
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* Auto TTS toggle */}
+            <motion.button
+              onClick={() => {
+                setAutoTTS((prev) => !prev);
+                if (autoTTS) stopTTS();
+              }}
+              whileTap={{ scale: 0.92 }}
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all ${
+                autoTTS
+                  ? 'bg-blue-primary/10 border-blue-primary/25 text-blue-light'
+                  : 'bg-white/4 border-white/10 text-white/30 hover:text-white/50'
+              }`}
+              title={autoTTS ? 'Auto-play suara aktif' : 'Auto-play suara nonaktif'}
             >
-              <IconDocument size={11} strokeWidth={2} className="text-emerald-400" />
-              <span className="text-[11px] text-emerald-400 font-medium">{activeDocs} Dokumen</span>
-            </motion.div>
-          )}
+              {autoTTS ? (
+                <IconVolume size={11} strokeWidth={2} />
+              ) : (
+                <IconVolumeOff size={11} strokeWidth={2} />
+              )}
+              <span className="text-[11px] font-medium">
+                {autoTTS ? 'ON' : 'OFF'}
+              </span>
+            </motion.button>
+
+            {activeDocs > 0 && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/8 border border-emerald-500/20"
+              >
+                <IconDocument size={11} strokeWidth={2} className="text-emerald-400" />
+                <span className="text-[11px] text-emerald-400 font-medium">{activeDocs} Dokumen</span>
+              </motion.div>
+            )}
+          </div>
         </div>
+
+        {/* Click outside to close mode menu */}
+        {showModeMenu && (
+          <div className="fixed inset-0 z-40" onClick={() => setShowModeMenu(false)} />
+        )}
+
+        {/* Messages area */}
+        <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
+          <div className="max-w-3xl mx-auto space-y-6">
+            <AnimatePresence initial={false}>
+              {messages.map((msg) => (
+                <ChatBubble
+                  key={msg.id}
+                  message={msg}
+                  ttsStatus={ttsStatus}
+                  isThisTTSPlaying={playingMessageId === msg.id}
+                  onPlayTTS={handlePlayTTS}
+                />
+              ))}
+            </AnimatePresence>
+
+            <AnimatePresence>
+              {isTyping && <TypingIndicator />}
+            </AnimatePresence>
+
+            <div ref={bottomRef} />
+          </div>
+        </div>
+
+        {/* Input */}
+        <MessageInput
+          onSend={handleSend}
+          disabled={isDisabled}
+        />
       </div>
 
-      {/* Click outside to close mode menu */}
-      {showModeMenu && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowModeMenu(false)} />
-      )}
-
-      {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
-        <div className="max-w-3xl mx-auto space-y-6">
-          <AnimatePresence initial={false}>
-            {messages.map((msg) => (
-              <ChatBubble
-                key={msg.id}
-                message={msg}
-                ttsStatus={ttsStatus}
-                isThisTTSPlaying={playingMessageId === msg.id}
-                onPlayTTS={handlePlayTTS}
-              />
-            ))}
-          </AnimatePresence>
-
-          <AnimatePresence>
-            {isTyping && <TypingIndicator />}
-          </AnimatePresence>
-
-          <div ref={bottomRef} />
-        </div>
+      {/* Right: Voice Visualizer panel */}
+      <div className="hidden lg:flex w-[340px] border-l border-white/6 bg-navy-dark/20 flex-shrink-0">
+        <VoiceVisualizer
+          status={ttsStatus}
+          mode={ttsMode}
+          analyserRef={analyserRef}
+        />
       </div>
-
-      {/* Input */}
-      <MessageInput
-        onSend={handleSend}
-        disabled={isDisabled}
-      />
     </div>
   );
 }
