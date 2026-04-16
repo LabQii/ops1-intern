@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Sparkles, FerrisWheel } from "lucide-react";
 
-const SEGMENTS = [
+const INITIAL_SEGMENTS = [
   "Arifin",
   "Syam",
   "Regina",
@@ -20,14 +20,14 @@ const COLORS = [
   "#ffbd90",
   "#ff9e66",
 ];
-
 export default function SpinnerGame() {
+  const [availableSegments, setAvailableSegments] = useState(INITIAL_SEGMENTS);
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [isLoadingMemory, setIsLoadingMemory] = useState(false);
 
-  const angle = 360 / SEGMENTS.length;
+  const angle = availableSegments.length > 0 ? 360 / availableSegments.length : 0;
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const wheelRef = useRef<HTMLDivElement>(null);
@@ -116,7 +116,7 @@ export default function SpinnerGame() {
       let angleDeg = Math.atan2(b, a) * (180 / Math.PI);
       if (angleDeg < 0) angleDeg += 360;
 
-      const segmentAngle = 360 / SEGMENTS.length;
+      const segmentAngle = availableSegments.length > 0 ? 360 / availableSegments.length : 0;
       let sector = Math.floor(angleDeg / segmentAngle);
 
       if (lastSectorRef.current !== -1 && sector !== lastSectorRef.current) {
@@ -156,9 +156,9 @@ export default function SpinnerGame() {
       setIsSpinning(false);
       // Calculate which segment won based on the final rotation
       const normalizedRotation = (360 - (newRotation % 360)) % 360;
-      const index = Math.round(normalizedRotation / angle) % SEGMENTS.length;
+      const index = Math.round(normalizedRotation / angle) % availableSegments.length;
 
-      setResult(SEGMENTS[index]);
+      setResult(availableSegments[index]);
       setIsLoadingMemory(true);
 
       // Simulate drawing the memory
@@ -171,22 +171,34 @@ export default function SpinnerGame() {
   };
 
   // Generate the conic gradient for the wheel
-  const conicGradient = SEGMENTS.map((_, i) => {
+  const conicGradient = availableSegments.map((_, i) => {
     return `${COLORS[i % COLORS.length]} ${i * angle}deg ${(i + 1) * angle}deg`;
   }).join(", ");
+
+  const resetWheel = () => {
+    if (isSpinning) return;
+    setAvailableSegments(INITIAL_SEGMENTS);
+    setResult(null);
+    setRotation(0);
+    lastSectorRef.current = -1;
+  };
+
+  const handleNext = () => {
+    if (result) {
+      setAvailableSegments(prev => prev.filter(s => s !== result));
+    }
+    setResult(null);
+  };
 
   return (
     <>
       <style dangerouslySetInnerHTML={{
         __html: `
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&display=swap');
-        
         * {
-            font-family: 'Fredoka', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
         }
         
         body {
-            background: #fff9f5 !important;
             overflow-x: hidden;
         }
 
@@ -263,22 +275,20 @@ export default function SpinnerGame() {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-
-        .bouncy {
-            animation: bounce 2s infinite;
-        }
-
-        @keyframes bounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
       `}} />
 
       <div className="min-h-screen flex flex-col items-center p-4 pt-20">
         {/* Header */}
-        <header className="text-center mb-10 mt-6 bouncy">
-          <h1 className="text-5xl font-bold text-[#ff8c42] mb-2">Bye-Bye Memories!</h1>
-          <p className="text-orange-400 font-medium">Let's find a sweet story to tell ✨</p>
+        <header className="text-center mb-12 mt-6">
+          <h1 className="text-4xl md:text-5xl font-black text-white mb-4">
+            GOODBYE{' '}
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-light to-orange-primary">
+              MEMORIES
+            </span>
+          </h1>
+          <p className="text-white/45 text-lg max-w-xl mx-auto leading-relaxed">
+            Mari kita dengar cerita dari masing-masing individual
+          </p>
         </header>
 
         {/* Game Area */}
@@ -298,10 +308,10 @@ export default function SpinnerGame() {
               background: `conic-gradient(from -${angle / 2}deg, ${conicGradient})`,
             }}
           >
-            {SEGMENTS.map((segment, index) => {
+            {availableSegments.map((segment, index) => {
               return (
                 <div
-                  key={index}
+                  key={`${segment}-${index}`}
                   className="absolute top-0 left-0 w-full h-full"
                   style={{ transform: `rotate(${index * angle}deg)` }}
                 >
@@ -319,13 +329,25 @@ export default function SpinnerGame() {
           </div>
         </div>
 
-        <button
-          onClick={spinWheel}
-          disabled={isSpinning}
-          className="mt-16 cursor-pointer cute-button text-white px-12 py-5 rounded-3xl font-bold text-2xl tracking-wide uppercase shadow-xl hover:brightness-110 mx-auto flex items-center justify-center gap-2"
-        >
-          {isSpinning ? "SPINNING..." : <span className="flex items-center gap-3">SPIN ME! <FerrisWheel className="w-8 h-8" /></span>}
-        </button>
+        <div className="mt-16 flex flex-col items-center gap-6">
+          <button
+            onClick={spinWheel}
+            disabled={isSpinning || availableSegments.length === 0}
+            className="cursor-pointer cute-button text-white px-12 py-5 rounded-3xl font-bold text-2xl tracking-wide uppercase shadow-xl hover:brightness-110 flex items-center justify-center gap-2"
+          >
+            {isSpinning ? "SPINNING..." : availableSegments.length === 0 ? "DONE!" : <span className="flex items-center gap-3">SPIN ME! <FerrisWheel className="w-8 h-8" /></span>}
+          </button>
+
+          {availableSegments.length < INITIAL_SEGMENTS.length && (
+            <button
+              onClick={resetWheel}
+              disabled={isSpinning}
+              className="text-white/60 hover:text-white text-sm font-bold uppercase tracking-widest border-b border-white/20 hover:border-white/50 transition-all pb-1"
+            >
+              Reset Names
+            </button>
+          )}
+        </div>
 
         {/* Story Modal */}
         {result && !isSpinning && (
@@ -335,7 +357,7 @@ export default function SpinnerGame() {
               {isLoadingMemory ? (
                 <div className="p-16 flex flex-col items-center justify-center">
                   <div className="loader mb-6"></div>
-                  <p className="text-orange-500 font-bold text-xl animate-pulse">Drawing your memory... 🎨</p>
+                  <p className="text-orange-500 font-bold text-xl animate-pulse">Hayooo siapa yaa...</p>
                 </div>
               ) : (
                 <div>
@@ -353,13 +375,13 @@ export default function SpinnerGame() {
                     </div>
                   </div>
                   <div className="p-8 text-center pt-10">
-                    <h2 className="text-3xl font-bold text-gray-800 mb-2">Tell the Story!</h2>
-                    <p className="text-gray-500 font-medium mb-8">What adorable moment comes to mind when you see this?</p>
+                    <h2 className="text-3xl font-bold text-gray-800 mb-2">WIB</h2>
+                    <p className="text-gray-500 font-medium mb-8">Waktu Indonesia Bercerita</p>
                     <button
-                      onClick={() => setResult(null)}
+                      onClick={handleNext}
                       className="w-full bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold py-4 rounded-2xl transition-all border-b-4 border-orange-200 active:translate-y-1 active:border-b-0"
                     >
-                      That was sweet! One more?
+                      ONE MORE
                     </button>
                   </div>
                 </div>
