@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
-import { IconUser, IconCheck, IconSettings } from '@/components/ui/Icons';
+import { IconCheck, IconSettings } from '@/components/ui/Icons';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
