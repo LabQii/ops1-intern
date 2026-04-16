@@ -7,7 +7,8 @@ import ChatBubble from './ChatBubble';
 import TypingIndicator from './TypingIndicator';
 import MessageInput from './MessageInput';
 import Toast from '@/components/ui/Toast';
-import { IconDocument, IconBot } from '@/components/ui/Icons';
+import { IconDocument, IconBot, IconVolume, IconVolumeOff } from '@/components/ui/Icons';
+import { useTTS } from '@/lib/hooks/useTTS';
 
 function generateId() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -25,7 +26,11 @@ export default function ChatInterface() {
   const [isTyping, setIsTyping] = useState(false);
   const [activeDocs, setActiveDocs] = useState<number>(0);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [autoTTS, setAutoTTS] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const lastFinishedIdRef = useRef<string | null>(null);
+
+  const { status: ttsStatus, playingMessageId, play: playTTS, stop: stopTTS } = useTTS();
 
   useEffect(() => {
     // Fetch available documents count
@@ -50,6 +55,24 @@ export default function ChatInterface() {
     });
   }, [messages, isTyping]);
 
+  // Auto-play TTS when an assistant message finishes streaming
+  useEffect(() => {
+    if (!autoTTS) return;
+
+    const lastMsg = messages[messages.length - 1];
+    if (
+      lastMsg &&
+      lastMsg.role === 'assistant' &&
+      lastMsg.id !== 'welcome' &&
+      !lastMsg.isStreaming &&
+      lastMsg.content &&
+      lastMsg.id !== lastFinishedIdRef.current
+    ) {
+      lastFinishedIdRef.current = lastMsg.id;
+      playTTS(lastMsg.content, lastMsg.id);
+    }
+  }, [messages, autoTTS, playTTS]);
+
   const addToast = useCallback((type: ToastMessage['type'], message: string) => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, type, message }]);
@@ -66,6 +89,9 @@ export default function ChatInterface() {
       content: userMessage,
       timestamp: new Date(),
     };
+
+    // Stop any playing TTS when user sends a new message
+    stopTTS();
 
     setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
@@ -134,6 +160,13 @@ export default function ChatInterface() {
     }
   };
 
+  const handlePlayTTS = useCallback(
+    (text: string, messageId: string) => {
+      playTTS(text, messageId);
+    },
+    [playTTS]
+  );
+
   const isDisabled = isTyping;
 
   return (
@@ -153,6 +186,30 @@ export default function ChatInterface() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Auto TTS toggle */}
+          <motion.button
+            onClick={() => {
+              setAutoTTS((prev) => !prev);
+              if (autoTTS) stopTTS();
+            }}
+            whileTap={{ scale: 0.92 }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all ${
+              autoTTS
+                ? 'bg-blue-primary/10 border-blue-primary/25 text-blue-light'
+                : 'bg-white/4 border-white/10 text-white/30 hover:text-white/50'
+            }`}
+            title={autoTTS ? 'Auto-play suara aktif' : 'Auto-play suara nonaktif'}
+          >
+            {autoTTS ? (
+              <IconVolume size={11} strokeWidth={2} />
+            ) : (
+              <IconVolumeOff size={11} strokeWidth={2} />
+            )}
+            <span className="text-[11px] font-medium">
+              {autoTTS ? 'Suara ON' : 'Suara OFF'}
+            </span>
+          </motion.button>
+
           {activeDocs > 0 && (
             <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
@@ -171,7 +228,13 @@ export default function ChatInterface() {
         <div className="max-w-3xl mx-auto space-y-6">
           <AnimatePresence initial={false}>
             {messages.map((msg) => (
-              <ChatBubble key={msg.id} message={msg} />
+              <ChatBubble
+                key={msg.id}
+                message={msg}
+                ttsStatus={ttsStatus}
+                isThisTTSPlaying={playingMessageId === msg.id}
+                onPlayTTS={handlePlayTTS}
+              />
             ))}
           </AnimatePresence>
 
