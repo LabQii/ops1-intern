@@ -3,10 +3,12 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { IconUpload, IconTrash, IconDocument, IconLogOut } from '@/components/ui/Icons';
+import { IconUpload, IconTrash, IconDocument, IconLogOut, IconUser } from '@/components/ui/Icons';
 import Toast from '@/components/ui/Toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { ToastMessage } from '@/types';
+
+const SPINNER_NAMES = ['Arifin', 'Syam', 'Regina', 'David', 'Iqbal', 'Hanifah'];
 
 interface Document {
   id: string;
@@ -30,7 +32,9 @@ export default function AdminDashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '', type: 'doc' as 'doc' | 'cache' | 'cache-all' });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '', type: 'doc' as 'doc' | 'cache' | 'cache-all' | 'spinner-photo' });
+  const [spinnerPhotos, setSpinnerPhotos] = useState<Record<string, string>>({});
+  const [isSpinnerLoading, setIsSpinnerLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [cacheEntries, setCacheEntries] = useState<CacheEntry[]>([]);
   const [isCacheLoading, setIsCacheLoading] = useState(true);
@@ -40,6 +44,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     fetchDocuments();
     fetchCache();
+    fetchSpinnerPhotos();
   }, []);
 
   const fetchDocuments = async () => {
@@ -136,6 +141,26 @@ export default function AdminDashboard() {
       return;
     }
 
+    if (type === 'spinner-photo') {
+      setIsDeleting(true);
+      try {
+        const res = await fetch(`/api/admin/spinner-photos?name=${encodeURIComponent(name)}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          addToast('success', `Foto untuk ${name} berhasil dihapus`);
+          fetchSpinnerPhotos();
+        } else {
+          addToast('error', data.message || 'Gagal menghapus foto');
+        }
+      } catch {
+        addToast('error', 'Kesalahan server');
+      } finally {
+        setIsDeleting(false);
+        setDeleteModal({ isOpen: false, id: '', name: '', type: 'doc' });
+      }
+      return;
+    }
+
     if (type === 'cache') {
       setIsDeleting(true);
       try {
@@ -189,17 +214,69 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchSpinnerPhotos = async () => {
+    try {
+      const res = await fetch('/api/admin/spinner-photos');
+      const data = await res.json();
+      if (data.success) setSpinnerPhotos(data.photos);
+    } catch {
+      // silent
+    } finally {
+      setIsSpinnerLoading(false);
+    }
+  };
+
+  const handleSpinnerPhotoUpload = async (name: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      addToast('error', 'Hanya file gambar yang didukung');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('name', name);
+
+    setIsSpinnerLoading(true);
+    try {
+      const res = await fetch('/api/admin/spinner-photos', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast('success', `Berhasil unggah foto untuk ${name}`);
+        fetchSpinnerPhotos();
+      } else {
+        addToast('error', data.message || 'Gagal unggah foto');
+      }
+    } catch {
+      addToast('error', 'Terjadi kesalahan jaringan');
+    } finally {
+      setIsSpinnerLoading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
+
   return (
     <div className="min-h-screen pt-24 px-4 pb-16">
       <Toast toasts={toasts} onRemove={removeToast} />
       <ConfirmModal
         isOpen={deleteModal.isOpen}
-        title="Hapus Dokumen"
+        title={
+          deleteModal.type === 'spinner-photo' ? 'Hapus Foto Spinner' : 
+          deleteModal.type.startsWith('cache') ? 'Hapus Cache' : 
+          'Hapus Dokumen'
+        }
         message={
           deleteModal.type === 'cache-all'
             ? 'Apakah kamu yakin ingin menghapus SEMUA cache? AI akan menghasilkan jawaban dan suara baru untuk semua pertanyaan.'
             : deleteModal.type === 'cache'
             ? `Hapus cache untuk "${deleteModal.name}"? Pertanyaan ini akan dijawab ulang oleh AI.`
+            : deleteModal.type === 'spinner-photo'
+            ? `Hapus foto untuk "${deleteModal.name}"? Orang ini akan kembali menggunakan logo default di spinner.`
             : `Apakah kamu yakin ingin menghapus "${deleteModal.name}"? File ini tidak akan bisa digunakan sebagai konteks RAG lagi.`
         }
         onConfirm={confirmDelete}
@@ -300,6 +377,72 @@ export default function AdminDashboard() {
                   </motion.div>
                 ))}
               </AnimatePresence>
+            </div>
+          )}
+        </div>
+
+        {/* Spinner Photos Section */}
+        <div className="bg-white/4 border border-white/8 rounded-3xl p-6 md:p-8 backdrop-blur-md relative overflow-hidden mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-white">Foto Spinner</h2>
+              <p className="text-white/40 text-sm mt-1">Kelola foto yang muncul saat seseorang terpilih di spinner</p>
+            </div>
+          </div>
+
+          {isSpinnerLoading && Object.keys(spinnerPhotos).length === 0 ? (
+            <div className="py-12 flex justify-center">
+              <div className="w-8 h-8 border-2 border-orange-primary/30 border-t-orange-primary rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {SPINNER_NAMES.map((name) => (
+                <div key={name} className="p-4 rounded-2xl bg-white/5 border border-white/10 flex flex-col items-center">
+                  <div className="w-20 h-20 rounded-full border-2 border-white/10 overflow-hidden mb-3 bg-white/5 flex items-center justify-center relative group">
+                    {spinnerPhotos[name] ? (
+                      <img src={spinnerPhotos[name]} alt={name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center text-white/20">
+                        <IconUser size={32} strokeWidth={1} />
+                      </div>
+                    )}
+                    
+                    <label className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                      <IconUpload size={20} className="text-white" />
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={(e) => handleSpinnerPhotoUpload(name, e)}
+                        disabled={isSpinnerLoading}
+                      />
+                    </label>
+                  </div>
+                  <p className="text-white font-medium text-sm mb-3">{name}</p>
+                  <div className="flex gap-2 w-full">
+                    <label className="flex-1">
+                      <div className="w-full py-1.5 rounded-lg bg-white/5 border border-white/10 text-white/60 text-[10px] font-bold uppercase tracking-wider text-center cursor-pointer hover:bg-white/10 hover:text-white transition-all">
+                        {spinnerPhotos[name] ? 'Ganti' : 'Unggah'}
+                      </div>
+                      <input 
+                        type="file" 
+                        className="hidden" 
+                        accept="image/*" 
+                        onChange={(e) => handleSpinnerPhotoUpload(name, e)}
+                        disabled={isSpinnerLoading}
+                      />
+                    </label>
+                    {spinnerPhotos[name] && (
+                      <button
+                        onClick={() => setDeleteModal({ isOpen: true, id: name, name, type: 'spinner-photo' })}
+                        className="p-1.5 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all"
+                      >
+                        <IconTrash size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>

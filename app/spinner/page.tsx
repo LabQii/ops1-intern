@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Sparkles, FerrisWheel } from "lucide-react";
+import { Sparkles, FerrisWheel, Maximize2, X } from "lucide-react";
 
 const INITIAL_SEGMENTS = [
   "Arifin",
@@ -21,11 +21,15 @@ const COLORS = [
   "#ff9e66",
 ];
 export default function SpinnerGame() {
+  const [sourceSegments, setSourceSegments] = useState(INITIAL_SEGMENTS);
   const [availableSegments, setAvailableSegments] = useState(INITIAL_SEGMENTS);
+  const [photoMap, setPhotoMap] = useState<Record<string, string>>({});
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [rotation, setRotation] = useState(0);
   const [isSpinning, setIsSpinning] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [isLoadingMemory, setIsLoadingMemory] = useState(false);
+  const [isImageEnlarged, setIsImageEnlarged] = useState(false);
 
   const angle = availableSegments.length > 0 ? 360 / availableSegments.length : 0;
 
@@ -138,6 +142,58 @@ export default function SpinnerGame() {
     return () => cancelAnimationFrame(animationFrameIdRef.current);
   }, [isSpinning, checkTick]);
 
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const res = await fetch('/api/admin/spinner-photos');
+        const data = await res.json();
+        if (data.success && data.photos) {
+          const names = Object.keys(data.photos);
+          if (names.length > 0) {
+            setSourceSegments(names);
+            
+            // Only set availableSegments to full list if NO matching saved list exists
+            const saved = localStorage.getItem("spinner_available_names");
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              if (Array.isArray(parsed) && parsed.length > 0) {
+                // Intersect with current names in case some were deleted from admin
+                const validNames = parsed.filter(n => names.includes(n));
+                setAvailableSegments(validNames.length > 0 ? validNames : names);
+              } else {
+                setAvailableSegments(names);
+              }
+            } else {
+              setAvailableSegments(names);
+            }
+          }
+          setPhotoMap(data.photos);
+        }
+      } catch (error) {
+        console.error("Failed to fetch spinner photos:", error);
+      } finally {
+        setIsInitialLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  // Remove the old Load Persistence useEffect (merged above)
+
+
+  // Save persistence on change
+  useEffect(() => {
+    // Only save if we are not in initial loading state and have segments
+    if (!isInitialLoading) {
+      if (availableSegments.length > 0) {
+        localStorage.setItem("spinner_available_names", JSON.stringify(availableSegments));
+      } else if (sourceSegments.length > 0) {
+        // Only remove if we actually have source names (to avoid clearing on early renders)
+        localStorage.removeItem("spinner_available_names");
+      }
+    }
+  }, [availableSegments, isInitialLoading, sourceSegments.length]);
+
   const spinWheel = () => {
     if (isSpinning) return;
     initAudio();
@@ -177,7 +233,8 @@ export default function SpinnerGame() {
 
   const resetWheel = () => {
     if (isSpinning) return;
-    setAvailableSegments(INITIAL_SEGMENTS);
+    setAvailableSegments(sourceSegments);
+    localStorage.removeItem("spinner_available_names");
     setResult(null);
     setRotation(0);
     lastSectorRef.current = -1;
@@ -188,6 +245,7 @@ export default function SpinnerGame() {
       setAvailableSegments(prev => prev.filter(s => s !== result));
     }
     setResult(null);
+    setIsImageEnlarged(false);
   };
 
   return (
@@ -275,6 +333,12 @@ export default function SpinnerGame() {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
+
+        .enlarge-overlay {
+            background: rgba(0, 0, 0, 0.9);
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
       `}} />
 
       <div className="min-h-screen flex flex-col items-center p-4 pt-20">
@@ -338,7 +402,7 @@ export default function SpinnerGame() {
             {isSpinning ? "SPINNING..." : availableSegments.length === 0 ? "DONE!" : <span className="flex items-center gap-3">SPIN ME! <FerrisWheel className="w-8 h-8" /></span>}
           </button>
 
-          {availableSegments.length < INITIAL_SEGMENTS.length && (
+          {availableSegments.length < sourceSegments.length && (
             <button
               onClick={resetWheel}
               disabled={isSpinning}
@@ -362,13 +426,26 @@ export default function SpinnerGame() {
               ) : (
                 <div>
                   <div className="relative p-6">
-                    {/* Replaced Unsplash image with the Fox Logo! */}
-                    <div className="bg-orange-50 rounded-[30px] border-4 border-orange-100 flex items-center justify-center w-full h-72 p-4">
+                    <div 
+                      className={`bg-orange-50 rounded-[30px] border-4 border-orange-100 flex items-center justify-center w-full h-72 overflow-hidden relative group/img cursor-zoom-in ${photoMap[result] ? "" : "p-4"}`}
+                      onClick={() => setIsImageEnlarged(true)}
+                    >
                       <img
-                        src="/logo.png"
-                        alt="Fox Logo"
-                        className="max-h-full object-contain"
+                        src={photoMap[result] || "/logo.png"}
+                        alt={result}
+                        className={photoMap[result] ? "w-full h-full object-cover" : "max-h-full object-contain"}
                       />
+                      
+                      <button 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setIsImageEnlarged(true);
+                        }}
+                        className="absolute top-3 right-3 w-10 h-10 rounded-full flex items-center justify-center text-white bg-[#ff8c42] hover:bg-[#e66b1a] transition-all shadow-xl z-10 border-2 border-white/20"
+                        title="Perbesar gambar"
+                      >
+                        <Maximize2 className="w-5 h-5" strokeWidth={3} />
+                      </button>
                     </div>
                     <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-[#ff8c42] text-white px-6 py-2 rounded-full font-bold text-lg shadow-lg whitespace-nowrap flex items-center justify-center gap-2">
                       <Sparkles className="w-5 h-5 fill-current" /> <span>{result}</span> <Sparkles className="w-5 h-5 fill-current" />
@@ -387,6 +464,34 @@ export default function SpinnerGame() {
                 </div>
               )}
 
+            </div>
+          </div>
+        )}
+
+        {/* Enlarged Image Overlay */}
+        {isImageEnlarged && result && photoMap[result] && (
+          <div 
+            className="enlarge-overlay fixed inset-0 flex items-center justify-center p-4 md:p-12 animate-in fade-in duration-300"
+            onClick={() => setIsImageEnlarged(false)}
+          >
+            <button 
+              className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"
+              onClick={() => setIsImageEnlarged(false)}
+            >
+              <X className="w-10 h-10" />
+            </button>
+            <div 
+              className="relative max-w-5xl w-full max-h-[85vh] flex items-center justify-center"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img 
+                src={photoMap[result]} 
+                alt={result}
+                className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border-4 border-white/10"
+              />
+              <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 text-white font-bold text-2xl tracking-widest drop-shadow-lg">
+                {result.toUpperCase()}
+              </div>
             </div>
           </div>
         )}
