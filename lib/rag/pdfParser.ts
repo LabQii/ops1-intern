@@ -1,6 +1,10 @@
 import { Chunk } from '@/types';
 import { PDFParse } from 'pdf-parse';
 
+// Disable pdfjs web worker — not available in Vercel serverless.
+// Must be called once at module level before any PDFParse instance is created.
+PDFParse.setWorker('');
+
 const CHUNK_SIZE = 600;
 const OVERLAP = 80;
 
@@ -9,10 +13,16 @@ function generateId(): string {
 }
 
 export async function extractAndChunk(buffer: Buffer, source: string): Promise<Chunk[]> {
-  const parser = new PDFParse({ data: buffer });
-  const data = await parser.getText();
+  const parser = new PDFParse({
+    data: buffer,
+    // Disable canvas & worker-fetch — unavailable in Vercel Node.js serverless
+    isOffscreenCanvasSupported: false,
+    useWorkerFetch: false,
+  });
+
+  const result = await parser.getText();
   await parser.destroy();
-  const text = data.text.replace(/\s+/g, ' ').trim();
+  const text = result.text.replace(/\s+/g, ' ').trim();
 
   const chunks: Chunk[] = [];
   let index = 0;
