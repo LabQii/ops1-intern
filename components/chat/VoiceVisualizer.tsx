@@ -87,7 +87,7 @@ export default function VoiceVisualizer({ status, mode, analyserRef }: VoiceVisu
           centerX, centerY, innerRadius,
           centerX, centerY, glowRadius
         );
-        glow.addColorStop(0, `rgba(59, 130, 246, ${0.06 + avgAmp * 0.08})`);
+        glow.addColorStop(0, `rgba(168, 85, 247, ${0.06 + avgAmp * 0.08})`); // Purple glow
         glow.addColorStop(1, 'rgba(59, 130, 246, 0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
@@ -107,12 +107,20 @@ export default function VoiceVisualizer({ status, mode, analyserRef }: VoiceVisu
         const x2 = centerX + Math.cos(angle) * (innerRadius + 6 + barLength);
         const y2 = centerY + Math.sin(angle) * (innerRadius + 6 + barLength);
 
+        // Gradient for each bar taking its position into account for a global purple-blue effect
+        const barGrad = ctx.createLinearGradient(0, 0, size, size);
+        if (isPlaying) {
+            barGrad.addColorStop(0, `rgba(168, 85, 247, ${0.35 + amp * 0.65})`);
+            barGrad.addColorStop(1, `rgba(59, 130, 246, ${0.35 + amp * 0.65})`);
+        } else {
+            barGrad.addColorStop(0, `rgba(168, 85, 247, ${0.08 + amp * 0.2})`);
+            barGrad.addColorStop(1, `rgba(59, 130, 246, ${0.08 + amp * 0.2})`);
+        }
+
         ctx.beginPath();
         ctx.moveTo(x1, y1);
         ctx.lineTo(x2, y2);
-        ctx.strokeStyle = isPlaying
-          ? `rgba(96, 165, 250, ${0.35 + amp * 0.65})`
-          : `rgba(96, 165, 250, ${0.08 + amp * 0.2})`;
+        ctx.strokeStyle = barGrad;
         ctx.lineWidth = barWidth;
         ctx.lineCap = 'round';
         ctx.stroke();
@@ -124,12 +132,12 @@ export default function VoiceVisualizer({ status, mode, analyserRef }: VoiceVisu
         centerX, centerY, innerRadius
       );
       if (isPlaying) {
-        innerGrad.addColorStop(0, 'rgba(59, 130, 246, 0.18)');
-        innerGrad.addColorStop(0.6, 'rgba(59, 130, 246, 0.08)');
+        innerGrad.addColorStop(0, 'rgba(168, 85, 247, 0.18)');
+        innerGrad.addColorStop(0.6, 'rgba(96, 165, 250, 0.08)');
         innerGrad.addColorStop(1, 'rgba(59, 130, 246, 0.04)');
       } else {
-        innerGrad.addColorStop(0, 'rgba(59, 130, 246, 0.08)');
-        innerGrad.addColorStop(0.7, 'rgba(59, 130, 246, 0.03)');
+        innerGrad.addColorStop(0, 'rgba(168, 85, 247, 0.08)');
+        innerGrad.addColorStop(0.7, 'rgba(96, 165, 250, 0.03)');
         innerGrad.addColorStop(1, 'rgba(59, 130, 246, 0.01)');
       }
       ctx.fillStyle = innerGrad;
@@ -137,10 +145,12 @@ export default function VoiceVisualizer({ status, mode, analyserRef }: VoiceVisu
       ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
       ctx.fill();
 
-      // Border
-      ctx.strokeStyle = isPlaying
-        ? 'rgba(96, 165, 250, 0.35)'
-        : 'rgba(96, 165, 250, 0.12)';
+      // Border gradient
+      const borderGrad = ctx.createLinearGradient(0, 0, size, size);
+      borderGrad.addColorStop(0, isPlaying ? 'rgba(168, 85, 247, 0.35)' : 'rgba(168, 85, 247, 0.12)');
+      borderGrad.addColorStop(1, isPlaying ? 'rgba(96, 165, 250, 0.35)' : 'rgba(96, 165, 250, 0.12)');
+      
+      ctx.strokeStyle = borderGrad;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2);
@@ -160,9 +170,11 @@ export default function VoiceVisualizer({ status, mode, analyserRef }: VoiceVisu
           : h * 0.3;
         const bx = startX + idx * barSpacing;
 
-        ctx.fillStyle = isPlaying
-          ? 'rgba(96, 165, 250, 0.6)'
-          : 'rgba(96, 165, 250, 0.2)';
+        const waveGrad = ctx.createLinearGradient(0, centerY - 20, 0, centerY + 20);
+        waveGrad.addColorStop(0, isPlaying ? 'rgba(168, 85, 247, 0.8)' : 'rgba(168, 85, 247, 0.3)');
+        waveGrad.addColorStop(1, isPlaying ? 'rgba(96, 165, 250, 0.8)' : 'rgba(96, 165, 250, 0.3)');
+
+        ctx.fillStyle = waveGrad;
         ctx.beginPath();
         ctx.roundRect(bx - 1.5, centerY - bh / 2, 3, bh, 1.5);
         ctx.fill();
@@ -198,13 +210,13 @@ export default function VoiceVisualizer({ status, mode, analyserRef }: VoiceVisu
           className="text-xs tracking-[0.2em] uppercase"
           animate={{ opacity: isPlaying ? [0.5, 1, 0.5] : 1 }}
           transition={isPlaying ? { duration: 2, repeat: Infinity } : {}}
-          style={{ color: isPlaying ? 'rgba(96,165,250,0.8)' : 'rgba(255,255,255,0.2)' }}
+          style={{ color: isPlaying ? 'rgba(168, 85, 247, 0.9)' : 'rgba(255,255,255,0.2)' }}
         >
           {isPlaying
             ? 'Sedang Berbicara'
             : isLoading
             ? 'Memproses Suara...'
-            : 'Menunggu'}
+            : 'Menunggu AI'}
         </motion.p>
         <p className="text-[10px] text-white/15">
           {mode === 'gemini' ? '✦ Gemini AI Voice' : mode === 'synthetic' ? '◈ Browser Voice' : '◉ Hybrid Voice'}

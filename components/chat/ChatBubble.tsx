@@ -113,10 +113,10 @@ export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlayi
       {/* Bubble + TTS button */}
       <div className="group relative flex flex-col gap-1.5">
         <div
-          className={`px-4 py-3 rounded-2xl text-sm leading-relaxed max-w-prose ${
+          className={`px-5 py-3.5 rounded-[20px] text-[15px] leading-relaxed max-w-[90%] shadow-sm ${
             isUser
-              ? 'bg-orange-primary/15 border border-orange-primary/25 text-white rounded-br-sm'
-              : 'bg-white/5 border border-white/10 text-white/90 rounded-bl-sm'
+              ? 'bg-gradient-to-br from-orange-primary/20 to-orange-primary/10 border border-orange-primary/20 text-white rounded-br-sm'
+              : 'bg-gradient-to-br from-white/10 to-white/5 border border-white/10 text-white rounded-bl-sm'
           }`}
         >
           <div className="flex flex-col gap-1">
@@ -135,7 +135,7 @@ export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlayi
         <div className={`flex items-center gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
           {renderTTSButton()}
           <div
-            className={`text-[10px] text-white/25 opacity-0 group-hover:opacity-100 transition-opacity`}
+            className="text-[11px] text-white/40 tracking-wide"
           >
             {timeStr}
           </div>

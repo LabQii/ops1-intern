@@ -151,7 +151,7 @@ export default function SpinnerGame() {
           const names = Object.keys(data.photos);
           if (names.length > 0) {
             setSourceSegments(names);
-            
+
             // Only set availableSegments to full list if NO matching saved list exists
             const saved = localStorage.getItem("spinner_available_names");
             if (saved) {
@@ -194,6 +194,24 @@ export default function SpinnerGame() {
     }
   }, [availableSegments, isInitialLoading, sourceSegments.length]);
 
+  // Idle Spin Effect
+  useEffect(() => {
+    let animationId: number;
+    let lastTime = performance.now();
+    
+    if (!isSpinning && !result) {
+      const updateIdleSpin = (time: number) => {
+        const deltaTime = time - lastTime;
+        lastTime = time;
+        // Advance rotation (e.g. 15 degrees per second)
+        setRotation(r => r + (15 * deltaTime / 1000)); 
+        animationId = requestAnimationFrame(updateIdleSpin);
+      };
+      animationId = requestAnimationFrame(updateIdleSpin);
+    }
+    return () => cancelAnimationFrame(animationId);
+  }, [isSpinning, result]);
+
   const spinWheel = () => {
     if (isSpinning) return;
     initAudio();
@@ -201,29 +219,29 @@ export default function SpinnerGame() {
     setResult(null);
     setIsLoadingMemory(false);
 
-    // Give it random spins
-    const spinDegrees = Math.floor(Math.random() * 360);
-    const extraSpins = 360 * (5 + Math.floor(Math.random() * 3));
-    const newRotation = rotation + extraSpins + spinDegrees;
-
-    setRotation(newRotation);
-
+    // Provide a small delay so React applies .spinning class first
     setTimeout(() => {
-      setIsSpinning(false);
-      // Calculate which segment won based on the final rotation
-      const normalizedRotation = (360 - (newRotation % 360)) % 360;
-      const index = Math.round(normalizedRotation / angle) % availableSegments.length;
+      setRotation(prev => {
+        const spinDegrees = Math.floor(Math.random() * 360);
+        const extraSpins = 360 * (5 + Math.floor(Math.random() * 3));
+        const newRotation = prev + extraSpins + spinDegrees;
 
-      setResult(availableSegments[index]);
-      setIsLoadingMemory(true);
+        setTimeout(() => {
+          setIsSpinning(false);
+          const normalizedRotation = (360 - (newRotation % 360)) % 360;
+          const index = Math.round(normalizedRotation / angle) % availableSegments.length;
+          setResult(availableSegments[index]);
+          setIsLoadingMemory(true);
 
-      // Simulate drawing the memory
-      setTimeout(() => {
-        setIsLoadingMemory(false);
-        playTada();
-      }, 2000);
+          setTimeout(() => {
+            setIsLoadingMemory(false);
+            playTada();
+          }, 2000);
+        }, 5000); // the transition duration
 
-    }, 5000); // Wait 5s for the CSS transition to end
+        return newRotation;
+      });
+    }, 50);
   };
 
   // Generate the conic gradient for the wheel
@@ -277,9 +295,12 @@ export default function SpinnerGame() {
             height: 100%;
             border-radius: 50%;
             border: 12px solid #fff;
-            transition: transform 5s cubic-bezier(0.2, 0, 0.1, 1);
             overflow: hidden;
             box-shadow: inset 0 0 15px rgba(0,0,0,0.05);
+        }
+
+        .wheel-inner.spinning {
+            transition: transform 5s cubic-bezier(0.2, 0, 0.1, 1);
         }
 
         .pointer {
@@ -366,7 +387,7 @@ export default function SpinnerGame() {
 
           <div
             ref={wheelRef}
-            className="wheel-inner"
+            className={`wheel-inner ${isSpinning ? 'spinning' : ''}`}
             style={{
               transform: `rotate(${rotation}deg)`,
               background: `conic-gradient(from -${angle / 2}deg, ${conicGradient})`,
@@ -399,7 +420,12 @@ export default function SpinnerGame() {
             disabled={isSpinning || availableSegments.length === 0}
             className="cursor-pointer cute-button text-white px-12 py-5 rounded-3xl font-bold text-2xl tracking-wide uppercase shadow-xl hover:brightness-110 flex items-center justify-center gap-2"
           >
-            {isSpinning ? "SPINNING..." : availableSegments.length === 0 ? "DONE!" : <span className="flex items-center gap-3">SPIN ME! <FerrisWheel className="w-8 h-8" /></span>}
+            {isSpinning
+              ? "SPINNING..."
+              : availableSegments.length === 0
+              ? "DONE!"
+              : <span className="flex items-center gap-3">SPIN ME! <FerrisWheel className="w-8 h-8" /></span>
+            }
           </button>
 
           {availableSegments.length < sourceSegments.length && (
@@ -421,12 +447,12 @@ export default function SpinnerGame() {
               {isLoadingMemory ? (
                 <div className="p-16 flex flex-col items-center justify-center">
                   <div className="loader mb-6"></div>
-                  <p className="text-orange-500 font-bold text-xl animate-pulse">Hayooo siapa yaa...</p>
+                  <p className="text-orange-500 font-bold text-xl animate-pulse">Yeayyyyy</p>
                 </div>
               ) : (
                 <div>
                   <div className="relative p-6">
-                    <div 
+                    <div
                       className={`bg-orange-50 rounded-[30px] border-4 border-orange-100 flex items-center justify-center w-full h-72 overflow-hidden relative group/img cursor-zoom-in ${photoMap[result] ? "" : "p-4"}`}
                       onClick={() => setIsImageEnlarged(true)}
                     >
@@ -435,8 +461,8 @@ export default function SpinnerGame() {
                         alt={result}
                         className={photoMap[result] ? "w-full h-full object-cover" : "max-h-full object-contain"}
                       />
-                      
-                      <button 
+
+                      <button
                         onClick={(e) => {
                           e.stopPropagation();
                           setIsImageEnlarged(true);
@@ -470,22 +496,22 @@ export default function SpinnerGame() {
 
         {/* Enlarged Image Overlay */}
         {isImageEnlarged && result && photoMap[result] && (
-          <div 
+          <div
             className="enlarge-overlay fixed inset-0 flex items-center justify-center p-4 md:p-12 animate-in fade-in duration-300"
             onClick={() => setIsImageEnlarged(false)}
           >
-            <button 
+            <button
               className="absolute top-6 right-6 text-white/50 hover:text-white transition-colors"
               onClick={() => setIsImageEnlarged(false)}
             >
               <X className="w-10 h-10" />
             </button>
-            <div 
+            <div
               className="relative max-w-5xl w-full max-h-[85vh] flex items-center justify-center"
               onClick={(e) => e.stopPropagation()}
             >
-              <img 
-                src={photoMap[result]} 
+              <img
+                src={photoMap[result]}
                 alt={result}
                 className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl border-4 border-white/10"
               />

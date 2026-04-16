@@ -35,6 +35,7 @@ export default function ChatInterface() {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [autoTTS, setAutoTTS] = useState(true);
   const [showModeMenu, setShowModeMenu] = useState(false);
+  const [abortController, setAbortController] = useState<AbortController | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastFinishedIdRef = useRef<string | null>(null);
 
@@ -109,16 +110,20 @@ export default function ChatInterface() {
       .slice(-6)
       .map((m) => ({ role: m.role, content: m.content }));
 
+    const assistantId = generateId();
+    const ctrl = new AbortController();
+    setAbortController(ctrl);
+
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMessage, history }),
+        signal: ctrl.signal,
       });
 
       if (!res.ok) throw new Error('Request failed');
 
-      const assistantId = generateId();
       const assistantMsg: Message = {
         id: assistantId,
         role: 'assistant',
@@ -162,11 +167,30 @@ export default function ChatInterface() {
           }
         }
       }
-    } catch {
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId
+              ? { ...m, content: m.content ? m.content + '\n\n*(Dihentikan)*' : '*(Pesan dihentikan)*' }
+              : m
+          )
+        );
+      } else {
+        addToast('error', 'Gagal mendapatkan respons. Coba lagi.');
+      }
+    } finally {
       setIsTyping(false);
-      addToast('error', 'Gagal mendapatkan respons. Coba lagi.');
+      setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m)));
+      setAbortController(null);
     }
   };
+
+  const handleStop = useCallback(() => {
+    if (abortController) {
+      abortController.abort();
+    }
+  }, [abortController]);
 
   const handlePlayTTS = useCallback(
     (text: string, messageId: string) => {
@@ -322,7 +346,9 @@ export default function ChatInterface() {
         {/* Input */}
         <MessageInput
           onSend={handleSend}
+          onStop={handleStop}
           disabled={isDisabled}
+          isGenerating={!!abortController}
         />
       </div>
 

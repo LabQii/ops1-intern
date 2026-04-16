@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { IconUpload, IconTrash, IconDocument, IconLogOut, IconUser } from '@/components/ui/Icons';
+import { IconUpload, IconTrash, IconDocument, IconLogOut, IconUser, IconLink, IconVideo, IconPlay } from '@/components/ui/Icons';
 import Toast from '@/components/ui/Toast';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import { ToastMessage } from '@/types';
@@ -27,17 +27,30 @@ interface CacheEntry {
   updated_at: string;
 }
 
+interface RecapVideo {
+  id: string;
+  title: string;
+  url: string;
+  embed_url: string;
+  thumbnail_url: string | null;
+  created_at: string;
+}
+
 export default function AdminDashboard() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '', type: 'doc' as 'doc' | 'cache' | 'cache-all' | 'spinner-photo' });
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '', type: 'doc' as 'doc' | 'cache' | 'cache-all' | 'spinner-photo' | 'video' });
   const [spinnerPhotos, setSpinnerPhotos] = useState<Record<string, string>>({});
   const [isSpinnerLoading, setIsSpinnerLoading] = useState(true);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [cacheEntries, setCacheEntries] = useState<CacheEntry[]>([]);
   const [isCacheLoading, setIsCacheLoading] = useState(true);
+  const [recapVideos, setRecapVideos] = useState<RecapVideo[]>([]);
+  const [isVideoLoading, setIsVideoLoading] = useState(true);
+  const [isVideoAdding, setIsVideoAdding] = useState(false);
+  const [videoForm, setVideoForm] = useState({ title: '', url: '' });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -45,6 +58,7 @@ export default function AdminDashboard() {
     fetchDocuments();
     fetchCache();
     fetchSpinnerPhotos();
+    fetchVideos();
   }, []);
 
   const fetchDocuments = async () => {
@@ -119,7 +133,7 @@ export default function AdminDashboard() {
   };
 
   const confirmDelete = async () => {
-    const { id, type } = deleteModal;
+    const { id, type, name } = deleteModal;
 
     if (type === 'cache-all') {
       setIsDeleting(true);
@@ -131,6 +145,26 @@ export default function AdminDashboard() {
           fetchCache();
         } else {
           addToast('error', data.error || 'Gagal menghapus');
+        }
+      } catch {
+        addToast('error', 'Kesalahan server');
+      } finally {
+        setIsDeleting(false);
+        setDeleteModal({ isOpen: false, id: '', name: '', type: 'doc' });
+      }
+      return;
+    }
+
+    if (type === 'video') {
+      setIsDeleting(true);
+      try {
+        const res = await fetch(`/api/admin/videos?id=${id}`, { method: 'DELETE' });
+        const data = await res.json();
+        if (data.success) {
+          addToast('success', `Video "${name}" berhasil dihapus`);
+          fetchVideos();
+        } else {
+          addToast('error', data.message || 'Gagal menghapus video');
         }
       } catch {
         addToast('error', 'Kesalahan server');
@@ -260,18 +294,62 @@ export default function AdminDashboard() {
     }
   };
 
+  // --- Video Rekap ---
+  const fetchVideos = async () => {
+    try {
+      const res = await fetch('/api/admin/videos');
+      const data = await res.json();
+      if (data.success) setRecapVideos(data.videos);
+    } catch {
+      // silent
+    } finally {
+      setIsVideoLoading(false);
+    }
+  };
+
+  const handleAddVideo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!videoForm.title.trim() || !videoForm.url.trim()) {
+      addToast('error', 'Title dan URL wajib diisi');
+      return;
+    }
+    setIsVideoAdding(true);
+    try {
+      const res = await fetch('/api/admin/videos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(videoForm),
+      });
+      const data = await res.json();
+      if (data.success) {
+        addToast('success', `Video "${videoForm.title}" berhasil ditambahkan`);
+        setVideoForm({ title: '', url: '' });
+        fetchVideos();
+      } else {
+        addToast('error', data.message || 'Gagal menambah video');
+      }
+    } catch {
+      addToast('error', 'Terjadi kesalahan jaringan');
+    } finally {
+      setIsVideoAdding(false);
+    }
+  };
+
   return (
     <div className="min-h-screen pt-24 px-4 pb-16">
       <Toast toasts={toasts} onRemove={removeToast} />
       <ConfirmModal
         isOpen={deleteModal.isOpen}
         title={
+          deleteModal.type === 'video' ? 'Hapus Video' :
           deleteModal.type === 'spinner-photo' ? 'Hapus Foto Spinner' : 
           deleteModal.type.startsWith('cache') ? 'Hapus Cache' : 
           'Hapus Dokumen'
         }
         message={
-          deleteModal.type === 'cache-all'
+          deleteModal.type === 'video'
+            ? `Hapus video "${deleteModal.name}"? Video ini tidak akan muncul lagi di halaman rekap.`
+            : deleteModal.type === 'cache-all'
             ? 'Apakah kamu yakin ingin menghapus SEMUA cache? AI akan menghasilkan jawaban dan suara baru untuk semua pertanyaan.'
             : deleteModal.type === 'cache'
             ? `Hapus cache untuk "${deleteModal.name}"? Pertanyaan ini akan dijawab ulang oleh AI.`
@@ -443,6 +521,113 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* Video Rekap Section */}
+        <div className="bg-white/4 border border-white/8 rounded-3xl p-6 md:p-8 backdrop-blur-md relative overflow-hidden mt-8">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="text-xl font-bold text-white">Video Rekap</h2>
+              <p className="text-white/40 text-sm mt-1">Kelola video rekap yang ditampilkan di halaman /video</p>
+            </div>
+          </div>
+
+          {/* Add Video Form */}
+          <form onSubmit={handleAddVideo} className="p-4 rounded-2xl bg-white/4 border border-white/10 mb-6 space-y-3">
+            <p className="text-xs font-semibold text-white/50 uppercase tracking-wider mb-3">Tambah Video Baru</p>
+            <div className="flex flex-col gap-3">
+              <input
+                type="text"
+                placeholder="Judul video..."
+                value={videoForm.title}
+                onChange={(e) => setVideoForm((v) => ({ ...v, title: e.target.value }))}
+                className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/25 text-sm outline-none focus:border-blue-light/50 transition-colors"
+                disabled={isVideoAdding}
+              />
+
+              <div className="flex gap-3">
+                <div className="relative flex-1">
+                  <IconLink size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-white/30" />
+                  <input
+                    type="url"
+                    placeholder="URL YouTube atau Google Drive..."
+                    value={videoForm.url}
+                    onChange={(e) => setVideoForm((v) => ({ ...v, url: e.target.value }))}
+                    className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-white/25 text-sm outline-none focus:border-blue-light/50 transition-colors"
+                    disabled={isVideoAdding}
+                  />
+                </div>
+                <motion.button
+                  whileTap={{ scale: 0.95 }}
+                  type="submit"
+                  disabled={isVideoAdding || !videoForm.title.trim() || !videoForm.url.trim()}
+                  className="px-5 py-2.5 bg-gradient-to-r from-blue-primary to-blue-light text-white rounded-xl text-sm font-medium flex items-center gap-2 disabled:opacity-40 hover:shadow-lg transition-all whitespace-nowrap"
+                >
+                  {isVideoAdding ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <IconVideo size={16} strokeWidth={2} />
+                  )}
+                  Tambah
+                </motion.button>
+              </div>
+            </div>
+          </form>
+
+          {/* Video List */}
+          {isVideoLoading && recapVideos.length === 0 ? (
+            <div className="py-8 flex justify-center">
+              <div className="w-8 h-8 border-2 border-orange-primary/30 border-t-orange-primary rounded-full animate-spin" />
+            </div>
+          ) : recapVideos.length === 0 ? (
+            <div className="text-center py-12 border-2 border-dashed border-white/10 rounded-2xl bg-white/2">
+              <IconVideo size={40} className="text-white/20 mx-auto mb-3" strokeWidth={1} />
+              <p className="text-white/50">Belum ada video yang ditambahkan.</p>
+              <p className="text-white/30 text-sm mt-1">Tambahkan link YouTube atau Google Drive di atas.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <AnimatePresence>
+                {recapVideos.map((video) => (
+                  <motion.div
+                    key={video.id}
+                    layout
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95 }}
+                    className="flex items-center gap-4 p-3 rounded-2xl bg-white/5 border border-white/10 group hover:border-white/20 transition-colors"
+                  >
+                    {/* Thumbnail */}
+                    <div className="w-24 h-14 rounded-xl overflow-hidden bg-white/5 border border-white/8 flex-shrink-0 relative">
+                      {video.thumbnail_url ? (
+                        <img src={video.thumbnail_url} alt={video.title} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <IconPlay size={20} className="text-white/20" />
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm truncate">{video.title}</p>
+
+                      <p className="text-white/25 text-xs mt-1">
+                        {new Date(video.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                    </div>
+
+                    <button
+                      onClick={() => setDeleteModal({ isOpen: true, id: video.id, name: video.title, type: 'video' })}
+                      className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-500/10 text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-500/20 transition-all border border-transparent hover:border-red-500/30 flex-shrink-0"
+                      title="Hapus video"
+                    >
+                      <IconTrash size={16} strokeWidth={1.5} />
+                    </button>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           )}
         </div>
