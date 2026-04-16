@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from 'next/image';
 import { Sparkles, FerrisWheel, Maximize2, X } from "lucide-react";
 
 const INITIAL_SEGMENTS = [
@@ -410,7 +411,14 @@ export default function SpinnerGame() {
 
           {/* Center Logo Hub - Stationary! */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 md:w-32 md:h-32 bg-white rounded-full z-10 shadow-xl border-8 border-[#fde6d5] flex items-center justify-center overflow-hidden">
-            <img src="/logo.png" alt="Office Logo" className="w-full h-full object-cover p-1 md:p-2" />
+            <Image
+              src="/logo.png"
+              alt="Office Logo"
+              width={128}
+              height={128}
+              priority
+              className="w-full h-full object-cover p-1 md:p-2"
+            />
           </div>
         </div>
 

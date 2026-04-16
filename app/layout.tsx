@@ -19,7 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id" className={inter.variable} data-scroll-behavior="smooth">
       <body className="bg-navy-dark text-white antialiased">
         <Navbar />
-        <main>{children}</main>
+        <main className="pb-24 md:pb-0">{children}</main>
       </body>
     </html>
   );
