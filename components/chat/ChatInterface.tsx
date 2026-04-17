@@ -45,12 +45,12 @@ function shouldPlayIntroVideo(message: string): boolean {
 // Keywords that trigger a video AFTER the AI voice finishes
 const AFTER_TTS_VIDEO_TRIGGERS = [
   'punya pacar', 'pacar kamu', 'pacarmu', 'pacaran',
-  'ada pacar', 'lagi jomblo', 'single', 'punya gebetan',
+  'ada pacar', 'lagi jomblo', 'single', 'punya gebetan', 'pacar'
 ];
 
 const CREATOR_VIDEO_TRIGGERS = [
   'siapa yg buat lo', 'siapa yang buat', 'buat lo', 'siapa aja anggota ops intern',
-  'tim ops intern', 'pencipta', 'developer'
+  'tim ops intern', 'pencipta', 'developer', 'kamu dibuat siapa?'
 ];
 
 const INTRO_VIDEO_URL = '/intro.mp4';
