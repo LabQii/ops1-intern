@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect } from 'react';
 import { IconVideo, IconPlay } from '@/components/ui/Icons';
 import VideoModal from '@/components/ui/VideoModal';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 interface RecapVideo {
   id: string;
@@ -16,6 +17,7 @@ interface RecapVideo {
 
 
 export default function VideoPage() {
+  const { theme } = useTheme();
   const [videos, setVideos] = useState<RecapVideo[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeVideo, setActiveVideo] = useState<RecapVideo | null>(null);
@@ -41,7 +43,7 @@ export default function VideoPage() {
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h1 className="text-4xl md:text-5xl font-black text-white mt-12 mb-4">
+          <h1 className={`text-4xl md:text-5xl font-black mt-12 mb-4 transition-colors ${theme === 'dark' ? 'text-white' : 'text-navy-dark'}`}>
             THANKYOU{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-light to-blue-primary">
               ALL
@@ -62,7 +64,11 @@ export default function VideoPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', bounce: 0.2 }}
-            className="relative aspect-video rounded-3xl overflow-hidden border border-white/8 bg-gradient-to-br from-navy-dark via-navy-dark to-blue-primary/15 mb-8"
+            className={`relative aspect-video rounded-3xl overflow-hidden border transition-colors ${
+              theme === 'dark' 
+                ? 'border-white/10 bg-gradient-to-br from-navy-dark via-navy-dark to-blue-primary/15' 
+                : 'border-black/5 bg-gradient-to-br from-white via-white to-blue-light/10 shadow-lg'
+            } mb-8`}
           >
             {/* Background concentric rings */}
             <div className="absolute inset-0 flex items-center justify-center opacity-4">
@@ -76,12 +82,16 @@ export default function VideoPage() {
             </div>
 
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="w-[72px] h-[72px] rounded-full bg-white/8 backdrop-blur-md border border-white/15 flex items-center justify-center">
-                <IconPlay size={28} className="text-white ml-1 opacity-80" />
+              <div className={`w-[72px] h-[72px] rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${
+                theme === 'dark' ? 'bg-white/8 border-white/15' : 'bg-black/5 border-black/10'
+              }`}>
+                <IconPlay size={28} className={`${theme === 'dark' ? 'text-white' : 'text-navy-dark'} ml-1 opacity-80`} />
               </div>
             </div>
 
-            <div className="absolute inset-0 backdrop-blur-[1px] bg-navy-dark/55 flex flex-col items-center justify-end pb-8">
+            <div className={`absolute inset-0 backdrop-blur-[1px] flex flex-col items-center justify-end pb-8 transition-colors ${
+              theme === 'dark' ? 'bg-navy-dark/55' : 'bg-white/55'
+            }`}>
               <div className="text-center">
                 <div className="flex items-center gap-2 justify-center mb-1.5">
                   <motion.div
@@ -93,7 +103,7 @@ export default function VideoPage() {
                     Coming Soon
                   </span>
                 </div>
-                <p className="text-white/30 text-xs tracking-wide">Video sedang dalam proses editing</p>
+                <p className={`text-xs tracking-wide transition-colors ${theme === 'dark' ? 'text-white/30' : 'text-black/30'}`}>Video sedang dalam proses editing</p>
               </div>
             </div>
           </motion.div>
@@ -110,7 +120,11 @@ export default function VideoPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: i * 0.08, type: 'spring', bounce: 0.2 }}
-                  className="group relative rounded-2xl overflow-hidden border border-white/8 bg-gradient-to-br from-navy-dark to-blue-primary/10 cursor-pointer"
+                  className={`group relative rounded-2xl overflow-hidden border transition-all cursor-pointer ${
+                    theme === 'dark' 
+                      ? 'border-white/10 bg-gradient-to-br from-navy-dark to-blue-primary/10' 
+                      : 'border-black/5 bg-gradient-to-br from-white to-blue-light/5 shadow-md'
+                  }`}
                   style={{ aspectRatio: '16/9' }}
                   onClick={() => setActiveVideo(video)}
                   onMouseEnter={() => setHoveredId(video.id)}

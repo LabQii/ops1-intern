@@ -1,7 +1,9 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import Image from 'next/image';
 import { Sparkles, FerrisWheel, Maximize2, X } from "lucide-react";
+import { useTheme } from "@/components/providers/ThemeProvider";
 
 const INITIAL_SEGMENTS = [
   "Arifin",
@@ -21,6 +23,7 @@ const COLORS = [
   "#ff9e66",
 ];
 export default function SpinnerGame() {
+  const { theme } = useTheme();
   const [sourceSegments, setSourceSegments] = useState(INITIAL_SEGMENTS);
   const [availableSegments, setAvailableSegments] = useState(INITIAL_SEGMENTS);
   const [photoMap, setPhotoMap] = useState<Record<string, string>>({});
@@ -276,6 +279,9 @@ export default function SpinnerGame() {
         
         body {
             overflow-x: hidden;
+            background-color: var(--main-bg);
+            color: var(--main-text);
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         .wheel-container {
@@ -285,9 +291,11 @@ export default function SpinnerGame() {
             aspect-ratio: 1 / 1;
             margin: 0 auto;
             padding: 10px;
-            background: white;
+            background: ${theme === 'dark' ? 'white' : 'white'};
             border-radius: 50%;
-            box-shadow: 0 20px 0 #ffd8b8, 0 25px 50px -12px rgba(251, 146, 60, 0.25);
+            box-shadow: 0 20px 0 ${theme === 'dark' ? '#ffd8b8' : '#ffe0cc'}, 
+                        0 25px 50px -12px ${theme === 'dark' ? 'rgba(251, 146, 60, 0.25)' : 'rgba(255, 107, 0, 0.1)'};
+            transition: all 0.3s ease;
         }
 
         .wheel-inner {
@@ -319,7 +327,7 @@ export default function SpinnerGame() {
         }
 
         .modal-overlay {
-            background: rgba(255, 137, 34, 0.2);
+            background: ${theme === 'dark' ? 'rgba(13, 27, 42, 0.8)' : 'rgba(255, 249, 245, 0.8)'};
             backdrop-filter: blur(8px);
         }
 
@@ -365,13 +373,13 @@ export default function SpinnerGame() {
       <div className="min-h-screen flex flex-col items-center p-4 pt-20">
         {/* Header */}
         <header className="text-center mb-12 mt-6">
-          <h1 className="text-4xl md:text-5xl font-black text-white mb-4">
+          <h1 className={`text-4xl md:text-5xl font-black mb-4 transition-colors ${theme === 'dark' ? 'text-white' : 'text-navy-dark'}`}>
             GOODBYE{' '}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-light to-orange-primary">
               MEMORIES
             </span>
           </h1>
-          <p className="text-white/45 text-lg max-w-xl mx-auto leading-relaxed">
+          <p className={`text-lg max-w-xl mx-auto leading-relaxed transition-colors ${theme === 'dark' ? 'text-white/45' : 'text-black/45'}`}>
             Mari kita dengar cerita dari masing-masing individual
           </p>
         </header>
@@ -409,8 +417,17 @@ export default function SpinnerGame() {
           </div>
 
           {/* Center Logo Hub - Stationary! */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 md:w-32 md:h-32 bg-white rounded-full z-10 shadow-xl border-8 border-[#fde6d5] flex items-center justify-center overflow-hidden">
-            <img src="/logo.png" alt="Office Logo" className="w-full h-full object-cover p-1 md:p-2" />
+          <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-24 h-24 md:w-32 md:h-32 rounded-full z-10 shadow-xl border-8 transition-colors flex items-center justify-center overflow-hidden ${
+            theme === 'dark' ? 'bg-white border-[#fde6d5]' : 'bg-white border-[#fff9f5]'
+          }`}>
+            <Image
+              src="/logo.png"
+              alt="Office Logo"
+              width={128}
+              height={128}
+              priority
+              className="w-full h-full object-cover p-1 md:p-2"
+            />
           </div>
         </div>
 
@@ -432,7 +449,9 @@ export default function SpinnerGame() {
             <button
               onClick={resetWheel}
               disabled={isSpinning}
-              className="text-white/60 hover:text-white text-sm font-bold uppercase tracking-widest border-b border-white/20 hover:border-white/50 transition-all pb-1"
+              className={`text-sm font-bold uppercase tracking-widest border-b transition-all pb-1 ${
+                theme === 'dark' ? 'text-white/60 hover:text-white border-white/20 hover:border-white/50' : 'text-black/60 hover:text-black border-black/20 hover:border-black/50'
+              }`}
             >
               Reset Names
             </button>
@@ -442,7 +461,9 @@ export default function SpinnerGame() {
         {/* Story Modal */}
         {result && !isSpinning && (
           <div className="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-[40px] max-w-lg w-full overflow-hidden shadow-2xl border-8 border-orange-50 transform transition-all animate-in zoom-in duration-300">
+            <div className={`rounded-[40px] max-w-lg w-full overflow-hidden shadow-2xl border-8 transform transition-all animate-in zoom-in duration-300 ${
+              theme === 'dark' ? 'bg-white border-white/20' : 'bg-white border-orange-50'
+            }`}>
 
               {isLoadingMemory ? (
                 <div className="p-16 flex flex-col items-center justify-center">
@@ -478,11 +499,13 @@ export default function SpinnerGame() {
                     </div>
                   </div>
                   <div className="p-8 text-center pt-10">
-                    <h2 className="text-3xl font-bold text-gray-800 mb-2">WIB</h2>
-                    <p className="text-gray-500 font-medium mb-8">Waktu Indonesia Bercerita</p>
+                    <h2 className={`text-3xl font-bold mb-2 ${theme === 'dark' ? 'text-gray-800' : 'text-gray-800'}`}>WIB</h2>
+                    <p className={`font-medium mb-8 ${theme === 'dark' ? 'text-gray-500' : 'text-gray-500'}`}>Waktu Indonesia Bercerita</p>
                     <button
                       onClick={handleNext}
-                      className="w-full bg-orange-50 hover:bg-orange-100 text-orange-600 font-bold py-4 rounded-2xl transition-all border-b-4 border-orange-200 active:translate-y-1 active:border-b-0"
+                      className={`w-full font-bold py-4 rounded-2xl transition-all border-b-4 active:translate-y-1 active:border-b-0 ${
+                        theme === 'dark' ? 'bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200' : 'bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200'
+                      }`}
                     >
                       ONE MORE
                     </button>
