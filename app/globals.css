@@ -1,17 +1,51 @@
 @import "tailwindcss";
 
 @theme {
+  /* Dark Mode Variables (Default) */
   --color-navy-dark: #0D1B2A;
   --color-navy-medium: #0F2033;
   --color-blue-primary: #1A6BAA;
   --color-blue-light: #3BA3E8;
+
+  /* Light Mode Variables */
+  --bg-color-light: #fff9f5;
+  --light-orange: #ffe0cc;
+  --peach: #ffbd90;
+  --darker-orange: #ff9e66;
   --color-orange-primary: #FF6B00;
   --color-orange-light: #FF9A3C;
+
   --font-inter: var(--font-inter);
+}
+
+@layer base {
+  :root {
+    /* Set default tampilan ke Navy (Dark) */
+    background-color: var(--color-navy-dark);
+    color: #ffffff;
+
+    /* Mapping variabel utama ke warna gelap */
+    --main-bg: var(--color-navy-dark);
+    --main-text: #ffffff;
+    --accent: var(--color-blue-primary);
+
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+
+  /* Jika user memilih light mode (melalui class .light) */
+  .light {
+    background-color: var(--bg-color-light);
+    color: #000000;
+
+    --main-bg: var(--bg-color-light);
+    --main-text: #000000;
+    --accent: var(--color-orange-primary);
+  }
 }
 
 * {
   box-sizing: border-box;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
 }
 
 html[data-scroll-behavior='smooth'] {
@@ -31,13 +65,16 @@ body {
 ::-webkit-scrollbar {
   width: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.2);
 }
@@ -58,18 +95,37 @@ body {
 
 /* Animations */
 @keyframes float {
-  0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
 }
 
 @keyframes pulse-ring {
-  0% { transform: scale(0.8); opacity: 1; }
-  100% { transform: scale(2); opacity: 0; }
+  0% {
+    transform: scale(0.8);
+    opacity: 1;
+  }
+
+  100% {
+    transform: scale(2);
+    opacity: 0;
+  }
 }
 
 @keyframes shimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
+  0% {
+    background-position: -200% 0;
+  }
+
+  100% {
+    background-position: 200% 0;
+  }
 }
 
 .animate-float {
@@ -91,6 +147,7 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
