@@ -8,21 +8,46 @@ function generateId(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 }
 
-/** Extract raw text from a PDF buffer using pdf2json (pure Node.js, no worker/browser APIs). */
+/**
+ * Extract raw text from a PDF buffer using pdf2json.
+ * We traverse the parsed JSON structure directly (Pages > Texts > R > T)
+ * because getRawTextContent() often returns blank for custom-font PDFs.
+ */
 function parsePdfBuffer(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
-    // Suppress console.warn briefly to hide pdf2json warnings (Fake worker, Link fields etc)
     const originalWarn = console.warn;
     console.warn = () => {};
 
-    // Second arg `1` = raw text mode (disables URL encoding of text)
     const parser = new PDFParser(null, 1);
 
-    parser.on('pdfParser_dataReady', () => {
+    parser.on('pdfParser_dataReady', (pdfData: any) => {
       console.warn = originalWarn;
       try {
-        const raw = (parser as any).getRawTextContent() as string;
-        resolve(raw);
+        const pages: any[] = pdfData?.Pages ?? [];
+        const lines: string[] = [];
+
+        for (const page of pages) {
+          const texts: any[] = page?.Texts ?? [];
+          const pageWords: string[] = [];
+
+          for (const textObj of texts) {
+            const runs: any[] = textObj?.R ?? [];
+            for (const run of runs) {
+              if (run?.T) {
+                const decoded = decodeURIComponent(run.T);
+                pageWords.push(decoded);
+              }
+            }
+          }
+
+          if (pageWords.length > 0) {
+            lines.push(pageWords.join(' '));
+          }
+        }
+
+        const fullText = lines.join('\n');
+        console.log(`[pdfParser] Extracted ${fullText.length} chars from PDF`);
+        resolve(fullText);
       } catch (e) {
         reject(e);
       }
@@ -46,10 +71,16 @@ export async function extractAndChunk(buffer: Buffer, source: string): Promise<C
   let text = '';
   try {
     const raw = await parsePdfBuffer(buffer);
-    text = raw.replace(/\s+/g, ' ').trim();
+    // Normalize whitespace but preserve newlines as spaces
+    text = raw.replace(/[ \t]+/g, ' ').replace(/\n+/g, '\n').trim();
   } catch (error) {
     console.error(`[pdfParser] Failed to parse PDF ${source}:`, error);
     text = '';
+  }
+
+  if (!text) {
+    console.warn(`[pdfParser] No text extracted from ${source}`);
+    return [];
   }
 
   const chunks: Chunk[] = [];
@@ -75,3 +106,4 @@ export async function extractAndChunk(buffer: Buffer, source: string): Promise<C
 
   return chunks;
 }
+
