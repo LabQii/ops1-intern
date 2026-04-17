@@ -253,11 +253,10 @@ export default function ChatInterface() {
                       <button
                         key={m}
                         onClick={() => handleModeSelect(m)}
-                        className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${
-                          ttsMode === m
+                        className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${ttsMode === m
                             ? 'bg-blue-primary/15 text-blue-light'
                             : 'text-white/50 hover:bg-white/5 hover:text-white/70'
-                        }`}
+                          }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
                           background: ttsMode === m ? '#60a5fa' : 'transparent',
@@ -285,11 +284,10 @@ export default function ChatInterface() {
                 if (autoTTS) stopTTS();
               }}
               whileTap={{ scale: 0.92 }}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all ${
-                autoTTS
+              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all ${autoTTS
                   ? 'bg-blue-primary/10 border-blue-primary/25 text-blue-light'
                   : 'bg-white/4 border-white/10 text-white/30 hover:text-white/50'
-              }`}
+                }`}
               title={autoTTS ? 'Auto-play suara aktif' : 'Auto-play suara nonaktif'}
             >
               {autoTTS ? (

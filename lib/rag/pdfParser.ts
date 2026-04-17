@@ -1,9 +1,15 @@
 import { Chunk } from '@/types';
 import { PDFParse } from 'pdf-parse';
 
-// Disable pdfjs web worker — not available in Vercel serverless.
-// Must be called once at module level before any PDFParse instance is created.
-PDFParse.setWorker('');
+// Fix pdfjs worker initialization for Node.js environments.
+// We use require.resolve to safely find the worker file path.
+try {
+  const workerPath = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
+  PDFParse.setWorker(workerPath);
+} catch (e) {
+  // Fallback to null (fake worker) if worker file can't be resolved
+  PDFParse.setWorker(null);
+}
 
 const CHUNK_SIZE = 600;
 const OVERLAP = 80;
