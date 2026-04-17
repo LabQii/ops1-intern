@@ -9,6 +9,7 @@ import MessageInput from './MessageInput';
 import Toast from '@/components/ui/Toast';
 import { IconDocument, IconBot, IconVolume, IconVolumeOff } from '@/components/ui/Icons';
 import { useTTS, TTSMode } from '@/lib/hooks/useTTS';
+import { useTheme } from '@/components/providers/ThemeProvider';
 import VoiceVisualizer from './VoiceVisualizer';
 
 function generateId() {
@@ -29,6 +30,7 @@ const MODE_LABELS: Record<TTSMode, string> = {
 };
 
 export default function ChatInterface() {
+  const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const [activeDocs, setActiveDocs] = useState<number>(0);
@@ -208,21 +210,21 @@ export default function ChatInterface() {
   const isDisabled = isTyping;
 
   return (
-    <div className="flex h-[calc(100vh-64px)] pt-16">
+    <div className="flex h-screen pt-16 bg-[var(--main-bg)]">
       <Toast toasts={toasts} onRemove={removeToast} />
 
       {/* Left: Chat section */}
       <div className="flex flex-col flex-1 min-w-0">
         {/* Status bar */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-white/6 bg-navy-dark/40">
+        <div className={`flex items-center justify-between px-4 py-2 border-b ${theme === 'dark' ? 'border-white/6 bg-navy-dark/40' : 'border-black/5 bg-white/40'}`}>
           <div className="flex items-center gap-2">
             <motion.div
               className="w-1.5 h-1.5 rounded-full bg-emerald-400"
               animate={{ opacity: [1, 0.4, 1] }}
               transition={{ duration: 2.5, repeat: Infinity }}
             />
-            <IconBot size={13} strokeWidth={1.5} className="text-white/30" />
-            <span className="text-xs text-white/35 tracking-wide">OPS-1 AI aktif</span>
+            <IconBot size={13} strokeWidth={1.5} className={theme === 'dark' ? 'text-white/30' : 'text-black/30'} />
+            <span className={`text-xs tracking-wide ${theme === 'dark' ? 'text-white/35' : 'text-black/40'}`}>OPS-1 AI aktif</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -231,7 +233,7 @@ export default function ChatInterface() {
               <motion.button
                 onClick={() => setShowModeMenu(!showModeMenu)}
                 whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/4 border border-white/10 text-white/40 hover:text-white/60 hover:border-white/20 transition-all text-[11px] font-medium"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all text-[11px] font-medium ${theme === 'dark' ? 'bg-white/4 border-white/10 text-white/40 hover:text-white/60 hover:border-white/20' : 'bg-black/4 border-black/10 text-black/40 hover:text-black/60 hover:border-black/20'}`}
               >
                 <span>🎤</span>
                 <span>{MODE_LABELS[ttsMode]}</span>
@@ -247,24 +249,24 @@ export default function ChatInterface() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -4, scale: 0.95 }}
                     transition={{ duration: 0.15 }}
-                    className="absolute right-0 top-full mt-1 z-50 bg-[#1a1f2e] border border-white/12 rounded-xl shadow-2xl overflow-hidden min-w-[160px]"
+                    className={`absolute right-0 top-full mt-1 z-50 border rounded-xl shadow-2xl overflow-hidden min-w-[160px] ${theme === 'dark' ? 'bg-[#1a1f2e] border-white/12' : 'bg-white border-black/10'}`}
                   >
                     {(['hybrid', 'gemini', 'synthetic'] as TTSMode[]).map((m) => (
                       <button
                         key={m}
                         onClick={() => handleModeSelect(m)}
                         className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 transition-colors ${ttsMode === m
-                            ? 'bg-blue-primary/15 text-blue-light'
-                            : 'text-white/50 hover:bg-white/5 hover:text-white/70'
+                          ? (theme === 'dark' ? 'bg-blue-primary/15 text-blue-light' : 'bg-blue-50 text-blue-600')
+                          : (theme === 'dark' ? 'text-white/50 hover:bg-white/5 hover:text-white/70' : 'text-black/50 hover:bg-black/5 hover:text-black/70')
                           }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{
-                          background: ttsMode === m ? '#60a5fa' : 'transparent',
-                          border: ttsMode === m ? 'none' : '1px solid rgba(255,255,255,0.2)',
+                          background: ttsMode === m ? (theme === 'dark' ? '#60a5fa' : '#2563eb') : 'transparent',
+                          border: ttsMode === m ? 'none' : (theme === 'dark' ? '1px solid rgba(255,255,255,0.2)' : '1px solid rgba(0,0,0,0.2)'),
                         }} />
                         <div>
                           <div className="font-medium">{MODE_LABELS[m]}</div>
-                          <div className="text-[10px] text-white/25 mt-0.5">
+                          <div className={`text-[10px] mt-0.5 ${theme === 'dark' ? 'text-white/25' : 'text-black/40'}`}>
                             {m === 'hybrid' && 'Gemini + fallback browser'}
                             {m === 'gemini' && 'Suara natural Gemini AI'}
                             {m === 'synthetic' && 'Suara browser (instant)'}
@@ -285,8 +287,8 @@ export default function ChatInterface() {
               }}
               whileTap={{ scale: 0.92 }}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border transition-all ${autoTTS
-                  ? 'bg-blue-primary/10 border-blue-primary/25 text-blue-light'
-                  : 'bg-white/4 border-white/10 text-white/30 hover:text-white/50'
+                ? (theme === 'dark' ? 'bg-blue-primary/10 border-blue-primary/25 text-blue-light' : 'bg-blue-100 border-blue-300 text-blue-600')
+                : (theme === 'dark' ? 'bg-white/4 border-white/10 text-white/30 hover:text-white/50' : 'bg-black/4 border-black/10 text-black/40 hover:text-black/60')
                 }`}
               title={autoTTS ? 'Auto-play suara aktif' : 'Auto-play suara nonaktif'}
             >
@@ -351,7 +353,7 @@ export default function ChatInterface() {
       </div>
 
       {/* Right: Voice Visualizer panel (sidebar - shown when NOT playing) */}
-      <div className="hidden lg:flex w-[340px] border-l border-white/6 bg-navy-dark/20 flex-shrink-0">
+      <div className={`hidden lg:flex w-[340px] border-l flex-shrink-0 ${theme === 'dark' ? 'border-white/6 bg-navy-dark/20' : 'border-black/5 bg-gray-50/50'}`}>
         <VoiceVisualizer
           status={ttsStatus}
           mode={ttsMode}
@@ -368,7 +370,7 @@ export default function ChatInterface() {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.4, ease: 'easeInOut' }}
             className="fixed inset-0 z-[100] flex flex-col items-center justify-center"
-            style={{ background: 'radial-gradient(ellipse at center, rgba(15, 22, 40, 0.97) 0%, rgba(8, 12, 24, 0.99) 100%)' }}
+            style={{ background: theme === 'dark' ? 'radial-gradient(ellipse at center, rgba(15, 22, 40, 0.97) 0%, rgba(8, 12, 24, 0.99) 100%)' : 'radial-gradient(ellipse at center, rgba(255, 255, 255, 0.97) 0%, rgba(240, 240, 245, 0.99) 100%)' }}
           >
             {/* Animated background particles */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -379,7 +381,7 @@ export default function ChatInterface() {
                   style={{
                     width: 4 + i * 2,
                     height: 4 + i * 2,
-                    background: `rgba(255, 140, 66, ${0.08 + i * 0.02})`,
+                    background: theme === 'dark' ? `rgba(255, 140, 66, ${0.08 + i * 0.02})` : `rgba(255, 107, 0, ${0.08 + i * 0.02})`,
                     left: `${15 + i * 14}%`,
                     top: `${20 + (i % 3) * 25}%`,
                   }}
@@ -421,7 +423,7 @@ export default function ChatInterface() {
               transition={{ delay: 0.3 }}
               onClick={() => stopTTS()}
               whileTap={{ scale: 0.95 }}
-              className="mt-6 flex items-center gap-2 px-6 py-3 rounded-full bg-white/8 border border-white/15 text-white/60 hover:text-white hover:bg-white/12 hover:border-white/25 transition-all backdrop-blur-sm cursor-pointer"
+              className={`mt-6 flex items-center gap-2 px-6 py-3 rounded-full border transition-all backdrop-blur-sm cursor-pointer ${theme === 'dark' ? 'bg-white/8 border-white/15 text-white/60 hover:text-white hover:bg-white/12 hover:border-white/25' : 'bg-black/5 border-black/10 text-black/60 hover:text-black hover:bg-black/10 hover:border-black/20'}`}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                 <rect x="3" y="3" width="10" height="10" rx="2" />

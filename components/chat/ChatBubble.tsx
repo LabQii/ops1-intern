@@ -3,6 +3,7 @@
 import { motion } from 'framer-motion';
 import { Message } from '@/types';
 import { IconUser, IconBot, IconVolume, IconVolumeOff, IconLoader } from '@/components/ui/Icons';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 interface ChatBubbleProps {
   message: Message;
@@ -34,6 +35,7 @@ function renderContent(content: string) {
 }
 
 export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlaying = false, onPlayTTS }: ChatBubbleProps) {
+  const { theme } = useTheme();
   const isUser = message.role === 'user';
 
   const timeStr = message.timestamp.toLocaleTimeString('id-ID', {
@@ -65,10 +67,16 @@ export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlayi
           w-7 h-7 rounded-lg flex items-center justify-center
           transition-all duration-200 flex-shrink-0
           ${isPlaying
-            ? 'bg-blue-primary/20 border border-blue-primary/40 text-blue-light'
+            ? (theme === 'dark' 
+                ? 'bg-blue-primary/20 border border-blue-primary/40 text-blue-light'
+                : 'bg-blue-100 border border-blue-200 text-blue-600')
             : isLoading
-              ? 'bg-white/5 border border-white/10 text-white/30 cursor-wait'
-              : 'bg-white/5 border border-white/8 text-white/30 hover:text-white/60 hover:bg-white/10 hover:border-white/15'
+              ? (theme === 'dark'
+                  ? 'bg-white/5 border border-white/10 text-white/30 cursor-wait'
+                  : 'bg-black/5 border border-black/10 text-black/30 cursor-wait')
+              : (theme === 'dark'
+                  ? 'bg-white/5 border border-white/8 text-white/30 hover:text-white/60 hover:bg-white/10 hover:border-white/15'
+                  : 'bg-black/5 border border-black/5 text-black/40 hover:text-black/70 hover:bg-black/10 hover:border-black/15')
           }
         `}
         title={isPlaying ? 'Stop audio' : 'Play audio'}
@@ -115,8 +123,12 @@ export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlayi
         <div
           className={`px-4 py-3 rounded-[20px] text-[15px] leading-relaxed w-fit shadow-md transition-all ${
             isUser
-              ? 'bg-gradient-to-br from-orange-primary/20 to-orange-primary/10 border border-orange-primary/25 text-white rounded-br-none'
-              : 'bg-gradient-to-br from-white/12 to-white/6 border border-white/12 text-white rounded-bl-none'
+              ? (theme === 'dark'
+                  ? 'bg-gradient-to-br from-orange-primary/20 to-orange-primary/10 border border-orange-primary/25 text-white rounded-br-none'
+                  : 'bg-gradient-to-br from-orange-primary to-orange-light border-none text-white rounded-br-none')
+              : (theme === 'dark'
+                  ? 'bg-gradient-to-br from-white/12 to-white/6 border border-white/12 text-white rounded-bl-none'
+                  : 'bg-[var(--light-orange)] border-none text-[#4a4a4a] rounded-bl-none shadow-sm')
           }`}
         >
           <div className="flex flex-col gap-1 break-words">
@@ -135,7 +147,7 @@ export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlayi
         <div className={`flex items-center gap-2 ${isUser ? 'justify-end' : 'justify-start'}`}>
           {renderTTSButton()}
           <div
-            className="text-[11px] text-white/40 tracking-wide"
+            className={`text-[11px] tracking-wide ${theme === 'dark' ? 'text-white/40' : 'text-black/40'}`}
           >
             {timeStr}
           </div>

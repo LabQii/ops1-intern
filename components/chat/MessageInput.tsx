@@ -3,6 +3,7 @@
 import { useRef, useState, KeyboardEvent, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { IconSend } from '@/components/ui/Icons';
+import { useTheme } from '@/components/providers/ThemeProvider';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -12,6 +13,7 @@ interface MessageInputProps {
 }
 
 export default function MessageInput({ onSend, onStop, disabled, isGenerating }: MessageInputProps) {
+  const { theme } = useTheme();
   const [value, setValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -44,9 +46,9 @@ export default function MessageInput({ onSend, onStop, disabled, isGenerating }:
   const canSend = value.trim() && !disabled;
 
   return (
-    <div className="border-t border-white/8 bg-navy-dark/80 backdrop-blur-sm px-4 py-3">
+    <div className={`border-t backdrop-blur-sm px-4 py-3 ${theme === 'dark' ? 'border-white/8 bg-navy-dark/80' : 'border-black/5 bg-white/90'}`}>
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-end gap-3 bg-white/5 border border-white/10 rounded-2xl px-4 py-2.5 focus-within:border-blue-primary/50 focus-within:bg-white/10 transition-all shadow-inner">
+        <div className={`flex items-end gap-3 rounded-2xl px-4 py-2.5 transition-all shadow-inner border ${theme === 'dark' ? 'bg-white/5 border-white/10 focus-within:border-blue-primary/50 focus-within:bg-white/10' : 'bg-white border-orange-primary/30 focus-within:border-orange-primary focus-within:bg-orange-50/20'}`}>
 
           {/* Textarea */}
           <textarea
@@ -55,14 +57,14 @@ export default function MessageInput({ onSend, onStop, disabled, isGenerating }:
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             disabled={disabled}
-            placeholder="Mulai bercerita tentang perjalananmu..."
+            placeholder="Tulis sesuatu..."
             rows={1}
-            className="flex-1 bg-transparent text-white placeholder-white/30 text-[15px] resize-none outline-none py-1.5 min-h-[38px] max-h-[160px] leading-relaxed ml-1"
+            className={`flex-1 bg-transparent text-[15px] resize-none outline-none py-1.5 min-h-[38px] max-h-[160px] leading-relaxed ml-1 ${theme === 'dark' ? 'text-white placeholder-white/30' : 'text-black placeholder-black/40'}`}
           />
 
           {/* Char counter */}
           {value.length > 200 && (
-            <span className="text-[11px] text-white/25 mb-1.5 flex-shrink-0 font-mono">
+            <span className={`text-[11px] mb-1.5 flex-shrink-0 font-mono ${theme === 'dark' ? 'text-white/25' : 'text-black/30'}`}>
               {value.length}
             </span>
           )}
@@ -77,7 +79,7 @@ export default function MessageInput({ onSend, onStop, disabled, isGenerating }:
               className="w-10 h-10 rounded-[14px] flex items-center justify-center flex-shrink-0 transition-all shadow-lg"
               style={{
                 background: 'linear-gradient(135deg, rgba(239, 68, 68, 0.2), rgba(220, 38, 38, 0.1))',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
+                border: theme === 'dark' ? '1px solid rgba(239, 68, 68, 0.3)' : '1px solid rgba(239, 68, 68, 0.5)',
               }}
               title="Hentikan respons"
             >
@@ -94,8 +96,8 @@ export default function MessageInput({ onSend, onStop, disabled, isGenerating }:
               style={{
                 background: canSend
                   ? 'linear-gradient(135deg, #FF6B00, #FF9A3C)'
-                  : 'rgba(255,255,255,0.08)',
-                border: canSend ? 'none' : '1px solid rgba(255,255,255,0.1)',
+                  : (theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.04)'),
+                border: canSend ? 'none' : (theme === 'dark' ? '1px solid rgba(255,255,255,0.1)' : '1px solid rgba(0,0,0,0.1)'),
               }}
             >
               <IconSend size={16} strokeWidth={2} className="text-white ml-0.5" />
@@ -103,7 +105,7 @@ export default function MessageInput({ onSend, onStop, disabled, isGenerating }:
           )}
         </div>
 
-        <p className="text-center text-[10px] text-white/18 mt-2 tracking-wide">
+        <p className={`text-center text-[10px] mt-2 tracking-wide ${theme === 'dark' ? 'text-white/18' : 'text-black/30'}`}>
           Enter untuk kirim · Shift+Enter untuk baris baru
         </p>
       </div>
