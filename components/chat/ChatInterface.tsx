@@ -350,7 +350,7 @@ export default function ChatInterface() {
         />
       </div>
 
-      {/* Right: Voice Visualizer panel */}
+      {/* Right: Voice Visualizer panel (sidebar - shown when NOT playing) */}
       <div className="hidden lg:flex w-[340px] border-l border-white/6 bg-navy-dark/20 flex-shrink-0">
         <VoiceVisualizer
           status={ttsStatus}
@@ -358,6 +358,79 @@ export default function ChatInterface() {
           analyserRef={analyserRef}
         />
       </div>
+
+      {/* Fullscreen AI Overlay — appears when TTS is speaking */}
+      <AnimatePresence>
+        {ttsStatus === 'playing' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4, ease: 'easeInOut' }}
+            className="fixed inset-0 z-[100] flex flex-col items-center justify-center"
+            style={{ background: 'radial-gradient(ellipse at center, rgba(15, 22, 40, 0.97) 0%, rgba(8, 12, 24, 0.99) 100%)' }}
+          >
+            {/* Animated background particles */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <motion.div
+                  key={i}
+                  className="absolute rounded-full"
+                  style={{
+                    width: 4 + i * 2,
+                    height: 4 + i * 2,
+                    background: `rgba(255, 140, 66, ${0.08 + i * 0.02})`,
+                    left: `${15 + i * 14}%`,
+                    top: `${20 + (i % 3) * 25}%`,
+                  }}
+                  animate={{
+                    y: [0, -30, 0],
+                    opacity: [0.3, 0.7, 0.3],
+                  }}
+                  transition={{
+                    duration: 3 + i * 0.5,
+                    repeat: Infinity,
+                    delay: i * 0.4,
+                    ease: 'easeInOut',
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Character */}
+            <motion.div
+              initial={{ scale: 0.8, y: 30 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.8, y: 30 }}
+              transition={{ duration: 0.5, ease: 'easeOut' }}
+            >
+              <VoiceVisualizer
+                status={ttsStatus}
+                mode={ttsMode}
+                analyserRef={analyserRef}
+                isFullscreen
+              />
+            </motion.div>
+
+
+            {/* Stop button */}
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0 }}
+              transition={{ delay: 0.3 }}
+              onClick={() => stopTTS()}
+              whileTap={{ scale: 0.95 }}
+              className="mt-6 flex items-center gap-2 px-6 py-3 rounded-full bg-white/8 border border-white/15 text-white/60 hover:text-white hover:bg-white/12 hover:border-white/25 transition-all backdrop-blur-sm cursor-pointer"
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <rect x="3" y="3" width="10" height="10" rx="2" />
+              </svg>
+              <span className="text-sm font-medium tracking-wide">Hentikan</span>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
