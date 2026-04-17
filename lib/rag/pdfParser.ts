@@ -7,8 +7,8 @@ try {
   const workerPath = require.resolve('pdfjs-dist/build/pdf.worker.mjs');
   PDFParse.setWorker(workerPath);
 } catch (e) {
-  // Fallback to null (fake worker) if worker file can't be resolved
-  PDFParse.setWorker(null);
+  // Fallback to undefined (fake worker) if worker file can't be resolved
+  PDFParse.setWorker(undefined);
 }
 
 const CHUNK_SIZE = 600;
@@ -21,7 +21,6 @@ function generateId(): string {
 export async function extractAndChunk(buffer: Buffer, source: string): Promise<Chunk[]> {
   const parser = new PDFParse({
     data: buffer,
-    // Disable canvas & worker-fetch — unavailable in Vercel Node.js serverless
     isOffscreenCanvasSupported: false,
     useWorkerFetch: false,
   });
