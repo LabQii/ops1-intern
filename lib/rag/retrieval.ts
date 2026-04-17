@@ -10,6 +10,6 @@ export async function retrieveContext(query: string): Promise<string> {
   }
 
   return topChunks
-    .map((chunk, i) => `[Konteks ${i + 1}]\n${chunk.text}`)
+    .map((chunk, i) => `[Sumber: ${chunk.source}]\n${chunk.text}`)
     .join('\n\n');
 }

@@ -28,11 +28,13 @@ export function removeDocumentChunks(sourceFileName: string): void {
   }
 }
 
-export function queryTopK(queryEmbedding: number[], k = 4): Chunk[] {
+export function queryTopK(queryEmbedding: number[], k = 4, threshold = 0.15): Chunk[] {
   const results: Array<{ chunk: Chunk; score: number }> = [];
   for (const item of store.values()) {
     const score = cosineSimilarity(queryEmbedding, item.embedding);
-    results.push({ chunk: item.chunk, score });
+    if (score >= threshold) {
+      results.push({ chunk: item.chunk, score });
+    }
   }
   results.sort((a, b) => b.score - a.score);
   return results.slice(0, k).map((r) => r.chunk);
