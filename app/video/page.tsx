@@ -29,12 +29,13 @@ export default function VideoPage() {
       .then((d) => {
         if (d.success) setVideos(d.videos);
       })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setIsLoading(false));
   }, []);
 
   return (
-    <div className="min-h-screen pt-24 pb-16 px-4">
+    <div className={`min-h-screen pt-24 pb-16 px-4 transition-colors duration-300 ${theme === 'dark' ? 'dark bg-navy-dark' : 'light bg-bg-color-light'
+      }`}>
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <motion.div
@@ -64,11 +65,10 @@ export default function VideoPage() {
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2, type: 'spring', bounce: 0.2 }}
-            className={`relative aspect-video rounded-3xl overflow-hidden border transition-colors ${
-              theme === 'dark' 
-                ? 'border-white/10 bg-gradient-to-br from-navy-dark via-navy-dark to-blue-primary/15' 
-                : 'border-black/5 bg-gradient-to-br from-white via-white to-blue-light/10 shadow-lg'
-            } mb-8`}
+            className={`relative aspect-video rounded-3xl overflow-hidden border transition-colors ${theme === 'dark'
+              ? 'border-white/10 bg-gradient-to-br from-navy-dark via-navy-dark to-blue-primary/15'
+              : 'border-black/5 bg-gradient-to-br from-white via-white to-blue-light/10 shadow-lg'
+              } mb-8`}
           >
             {/* Background concentric rings */}
             <div className="absolute inset-0 flex items-center justify-center opacity-4">
@@ -82,16 +82,14 @@ export default function VideoPage() {
             </div>
 
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className={`w-[72px] h-[72px] rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${
-                theme === 'dark' ? 'bg-white/8 border-white/15' : 'bg-black/5 border-black/10'
-              }`}>
+              <div className={`w-[72px] h-[72px] rounded-full backdrop-blur-md border flex items-center justify-center transition-colors ${theme === 'dark' ? 'bg-white/8 border-white/15' : 'bg-black/5 border-black/10'
+                }`}>
                 <IconPlay size={28} className={`${theme === 'dark' ? 'text-white' : 'text-navy-dark'} ml-1 opacity-80`} />
               </div>
             </div>
 
-            <div className={`absolute inset-0 backdrop-blur-[1px] flex flex-col items-center justify-end pb-8 transition-colors ${
-              theme === 'dark' ? 'bg-navy-dark/55' : 'bg-white/55'
-            }`}>
+            <div className={`absolute inset-0 backdrop-blur-[1px] flex flex-col items-center justify-end pb-8 transition-colors ${theme === 'dark' ? 'bg-navy-dark/55' : 'bg-white/55'
+              }`}>
               <div className="text-center">
                 <div className="flex items-center gap-2 justify-center mb-1.5">
                   <motion.div
@@ -120,11 +118,10 @@ export default function VideoPage() {
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ delay: i * 0.08, type: 'spring', bounce: 0.2 }}
-                  className={`group relative rounded-2xl overflow-hidden border transition-all cursor-pointer ${
-                    theme === 'dark' 
-                      ? 'border-white/10 bg-gradient-to-br from-navy-dark to-blue-primary/10' 
-                      : 'border-black/5 bg-gradient-to-br from-white to-blue-light/5 shadow-md'
-                  }`}
+                  className={`group relative rounded-2xl overflow-hidden border transition-all cursor-pointer ${theme === 'dark'
+                    ? 'border-white/10 bg-gradient-to-br from-navy-dark to-blue-primary/10'
+                    : 'border-black/5 bg-gradient-to-br from-white to-blue-light/5 shadow-md'
+                    }`}
                   style={{ aspectRatio: '16/9' }}
                   onClick={() => setActiveVideo(video)}
                   onMouseEnter={() => setHoveredId(video.id)}
