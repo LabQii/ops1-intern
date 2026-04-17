@@ -19,7 +19,7 @@ function generateId() {
 const WELCOME_MSG: Message = {
   id: 'welcome',
   role: 'assistant',
-  content: `Halo! Saya adalah asisten anda, ada yang bisa saya bantu?`,
+  content: `Halo! Ada yang bisa saya bantu?`,
   timestamp: new Date(),
 };
 
@@ -245,13 +245,13 @@ export default function ChatInterface() {
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m)));
       setAbortController(null);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopTTS, messages, addToast]);
 
   // Wrapper: handle interceptors (direct video, intro video, normal send)
   const handleSend = useCallback((userMessage: string) => {
     const normalized = userMessage.toLowerCase().trim().replace(/[?!.,]/g, '');
-    
+
     // 1. Direct video: skip AI response, show video right away
     if (CREATOR_VIDEO_TRIGGERS.some((trigger) => normalized.includes(trigger))) {
       const userMsg: Message = {
