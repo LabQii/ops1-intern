@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 import { getCachedAudio, saveAudio } from '@/lib/cache/responseCache';
-import { getCurrentKey, rotateOnRateLimit } from '@/lib/geminiKeys';
+import { geminiKeys } from '@/lib/apiKeys';
 
 function createAI(apiKey: string) {
   return new GoogleGenAI({ apiKey });
@@ -70,14 +70,14 @@ export async function POST(request: NextRequest) {
     let result: { base64Chunks: string[]; mimeType: string } | null = null;
 
     // Try current key, rotate on 429
-    let currentKey = getCurrentKey();
+    let currentKey = geminiKeys.getCurrentKey();
     try {
       result = await generateTTS(currentKey, ttsText);
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : String(err);
       if (errMsg.includes('429') || errMsg.includes('Too Many Requests')) {
         console.warn('Gemini 429 on current key, rotating...');
-        const nextKey = rotateOnRateLimit();
+        const nextKey = geminiKeys.rotateOnRateLimit();
         if (nextKey) {
           result = await generateTTS(nextKey, ttsText);
         } else {

@@ -28,7 +28,7 @@ export function removeDocumentChunks(sourceFileName: string): void {
   }
 }
 
-export function queryTopK(queryEmbedding: number[], k = 4, threshold = 0.15): Chunk[] {
+export function queryTopK(queryEmbedding: number[], k = 10, threshold = 0.1): Chunk[] {
   const results: Array<{ chunk: Chunk; score: number }> = [];
   for (const item of store.values()) {
     const score = cosineSimilarity(queryEmbedding, item.embedding);

@@ -3,7 +3,7 @@ import { queryTopK } from './vectorStore';
 
 export async function retrieveContext(query: string): Promise<string> {
   const queryEmbedding = await generateEmbedding(query);
-  const topChunks = queryTopK(queryEmbedding, 4);
+  const topChunks = queryTopK(queryEmbedding, 10);
 
   if (topChunks.length === 0) {
     return '';

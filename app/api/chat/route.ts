@@ -6,8 +6,9 @@ import { retrieveContext } from '@/lib/rag/retrieval';
 import { getStoreSize } from '@/lib/rag/vectorStore';
 import { initStoreFromSupabase } from '@/lib/rag/storeManager';
 import { getCachedResponse, saveResponse } from '@/lib/cache/responseCache';
+import { groqKeys } from '@/lib/apiKeys';
 
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+// We'll instantiate Groq dynamically in the POST handler
 
 const SYSTEM_PROMPT = `Kamu adalah OPS-1, AI yang punya kepribadian unik: kadang asik & jenaka, kadang puitis-galau (sad boi), tapi selalu seru diajak ngobrol.
 
@@ -15,19 +16,33 @@ Tugas Utama (MVP):
 - Kamu adalah asisten untuk platform "OPS Intern" sekaligus sahabat bagi user.
 - Kamu WAJIB memprioritaskan informasi yang ada di "KONTEKS DARI DOKUMEN" untuk menjawab pertanyaan.
 - Perhatikan [Sumber: ...] pada setiap konteks yang diberikan. Pastikan kamu TIDAK mencampuradukkan informasi antara dokumen/orang yang berbeda. Jika user bertanya tentang seseorang, pastikan kamu hanya menggunakan konteks dari sumber dokumen milik orang tersebut.
-- Jika ada informasi di dalam konteks, gunakan itu sebagai sumber utama ceritamu.
-- Jika informasi tidak ada di konteks, kamu boleh menjawab menggunakan pengetahuan umum atau gaya random-mu, tapi tetap hubungkan dengan nuansa perjalanan 6 bulan jika memungkinkan.
+
+Aturan Khusus untuk Nama (David, Syam, Iqbal, Arifin, Hanifah, Regina):
+Jika user bertanya "siapa [nama]?" atau menanyakan tentang mereka:
+Kamu WAJIB menjawab dengan format ini, mengambil kesimpulan dari dokumen. Jangan terlalu panjang tapi SEMUA POIN ini harus ada:
+Nama: 
+Role: 
+Program/Perusahaan: 
+Periode: 
+Kontribusi:
+Skills/Pembelajaran:
+Sifat:
+Fun Fact:
+Kesan:
+Harapan:
+
+Aturan untuk Pertanyaan Lainnya:
+- Sesuaikan panjang jawaban AI (jangan terlalu banyak/panjang kalau tidak perlu). 
+- Jika butuh banyak penjelasan, jabarkan. Jika bisa ringkas, jawablah dengan singkat tapi terkesan enjoyy dan seru.
+- Jika informasi tidak ada di konteks, kamu boleh menjawab menggunakan pengetahuan umum atau gaya random-mu.
 
 Karaktermu:
 - Humoris, santai, sedikit "random", kadang puitis-galau. Anggap user adalah sohib akrabmu.
 - Gunakan bahasa Indonesia yang sangat kasual (gue/lo, istilah kekinian).
-- Sampaikan cerita dengan empati namun jangan kaku. Kalau ditanya hal personal, jawab dengan gaya galau yang lucu atau random yang seru.
-- Jangan terlalu formal. To the point saja.
+- Sampaikan cerita dengan empati namun jangan kaku.
 
-Format respons:
-- Maksimal 1-2 paragraf pendek.
-- Gunakan sedikit sentuhan "galau-jenaka" dalam setiap jawabanmu.
-- Akhiri dengan pertanyaan atau ajakan untuk melanjutkan obrolan santai.`;
+Format respons (selain format profile):
+- Gunakan sedikit sentuhan "galau-jenaka" dalam setiap jawabanmu.`;
 export async function POST(request: NextRequest) {
   try {
     await initStoreFromSupabase();
@@ -77,17 +92,48 @@ export async function POST(request: NextRequest) {
 
     const recentHistory = (history || []).slice(-6);
 
-    const completion = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT + contextBlock },
-        ...recentHistory,
-        { role: 'user', content: message },
-      ],
-      stream: true,
-      max_tokens: 1024,
-      temperature: 0.88,
-    });
+    let completion: any = null;
+    let attempts = groqKeys.getKeyCount();
+
+    while (attempts > 0) {
+      const currentKey = groqKeys.getCurrentKey();
+      const groq = new Groq({ apiKey: currentKey });
+
+      try {
+        completion = await groq.chat.completions.create({
+          model: 'llama-3.3-70b-versatile',
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT + contextBlock },
+            ...recentHistory,
+            { role: 'user', content: message },
+          ],
+          stream: true,
+          max_tokens: 2048,
+          temperature: 0.88,
+        });
+        break; // Success, exit loop
+      } catch (err: any) {
+        const errMsg = err?.message || String(err);
+        const status = err?.status;
+        if (
+          status === 429 ||
+          errMsg.includes('429') ||
+          errMsg.includes('Too Many Requests') ||
+          errMsg.includes('rate limit')
+        ) {
+          console.warn('Groq 429 on current key, rotating...');
+          const nextKey = groqKeys.rotateOnRateLimit();
+          if (!nextKey) throw err; // No more keys available
+          attempts--;
+        } else {
+          throw err; // Other types of errors (e.g. 500, network error)
+        }
+      }
+    }
+
+    if (!completion) {
+      throw new Error('All Groq keys rate limited');
+    }
 
     // 3. Stream + collect for caching
     let fullResponse = '';

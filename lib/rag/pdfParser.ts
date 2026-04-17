@@ -1,8 +1,8 @@
 import { Chunk } from '@/types';
 import PDFParser from 'pdf2json';
 
-const CHUNK_SIZE = 600;
-const OVERLAP = 80;
+const CHUNK_SIZE = 1500;
+const OVERLAP = 200;
 
 function generateId(): string {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
