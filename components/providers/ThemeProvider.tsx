@@ -19,7 +19,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Check localStorage or system preference on mount
     const savedTheme = localStorage.getItem('theme') as Theme | null;
     const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    
+
     const initialTheme = savedTheme || systemTheme;
     setThemeState(initialTheme);
     applyTheme(initialTheme);

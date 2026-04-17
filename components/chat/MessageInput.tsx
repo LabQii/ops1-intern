@@ -2,7 +2,7 @@
 
 import { useRef, useState, KeyboardEvent, ChangeEvent } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { IconUpload, IconSend } from '@/components/ui/Icons';
+import { IconSend } from '@/components/ui/Icons';
 
 interface MessageInputProps {
   onSend: (message: string) => void;
@@ -38,14 +38,6 @@ export default function MessageInput({ onSend, onStop, disabled, isGenerating }:
     setValue('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-    }
-  };
-
-  const handleFileChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      onUpload(file);
-      e.target.value = '';
     }
   };
 

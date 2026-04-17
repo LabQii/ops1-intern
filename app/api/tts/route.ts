@@ -1,10 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
-import { getCachedAudio, saveAudio, normalizeQuestion } from '@/lib/cache/responseCache';
+import { getCachedAudio, saveAudio } from '@/lib/cache/responseCache';
+import { getCurrentKey, rotateOnRateLimit } from '@/lib/geminiKeys';
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY!,
-});
+function createAI(apiKey: string) {
+  return new GoogleGenAI({ apiKey });
+}
+
+async function generateTTS(apiKey: string, ttsText: string) {
+  const ai = createAI(apiKey);
+
+  const response = await ai.models.generateContentStream({
+    model: 'gemini-3.1-flash-tts-preview',
+    config: {
+      temperature: 1,
+      responseModalities: ['audio'] as const,
+      speechConfig: {
+        voiceConfig: {
+          prebuiltVoiceConfig: {
+            voiceName: 'Achird',
+          },
+        },
+      },
+    },
+    contents: [
+      {
+        role: 'user',
+        parts: [{ text: ttsText }],
+      },
+    ],
+  });
+
+  const base64Chunks: string[] = [];
+  let mimeType = '';
+
+  for await (const chunk of response) {
+    if (!chunk.candidates?.[0]?.content?.parts?.[0]?.inlineData) continue;
+    const inlineData = chunk.candidates[0].content.parts[0].inlineData;
+    if (!mimeType && inlineData.mimeType) mimeType = inlineData.mimeType;
+    if (inlineData.data) base64Chunks.push(inlineData.data);
+  }
+
+  return { base64Chunks, mimeType };
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,41 +65,33 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 2. Generate from Gemini
+    // 2. Generate from Gemini with key rotation
     const ttsText = text.slice(0, 3000);
+    let result: { base64Chunks: string[]; mimeType: string } | null = null;
 
-    const response = await ai.models.generateContentStream({
-      model: 'gemini-3.1-flash-tts-preview',
-      config: {
-        temperature: 1,
-        responseModalities: ['audio'] as const,
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: 'Achird',
-            },
-          },
-        },
-      },
-      contents: [
-        {
-          role: 'user',
-          parts: [{ text: ttsText }],
-        },
-      ],
-    });
-
-    const base64Chunks: string[] = [];
-    let mimeType = '';
-
-    for await (const chunk of response) {
-      if (!chunk.candidates?.[0]?.content?.parts?.[0]?.inlineData) continue;
-      const inlineData = chunk.candidates[0].content.parts[0].inlineData;
-      if (!mimeType && inlineData.mimeType) mimeType = inlineData.mimeType;
-      if (inlineData.data) base64Chunks.push(inlineData.data);
+    // Try current key, rotate on 429
+    let currentKey = getCurrentKey();
+    try {
+      result = await generateTTS(currentKey, ttsText);
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      if (errMsg.includes('429') || errMsg.includes('Too Many Requests')) {
+        console.warn('Gemini 429 on current key, rotating...');
+        const nextKey = rotateOnRateLimit();
+        if (nextKey) {
+          result = await generateTTS(nextKey, ttsText);
+        } else {
+          return NextResponse.json(
+            { error: 'Semua API key terkena rate limit. Coba lagi nanti.' },
+            { status: 429 }
+          );
+        }
+      } else {
+        throw err;
+      }
     }
 
-    if (base64Chunks.length === 0) {
+    if (!result || result.base64Chunks.length === 0) {
       return NextResponse.json({ error: 'No audio generated' }, { status: 500 });
     }
 
@@ -69,8 +99,8 @@ export async function POST(request: NextRequest) {
     let sampleRate = 24000;
     let bitsPerSample = 16;
 
-    if (mimeType) {
-      const [fileType, ...params] = mimeType.split(';').map((s) => s.trim());
+    if (result.mimeType) {
+      const [fileType, ...params] = result.mimeType.split(';').map((s) => s.trim());
       const [, format] = fileType.split('/');
       if (format?.startsWith('L')) {
         const bits = parseInt(format.slice(1), 10);
@@ -82,20 +112,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const audioBuffers = base64Chunks.map((b64) => Buffer.from(b64, 'base64'));
+    const audioBuffers = result.base64Chunks.map((b64) => Buffer.from(b64, 'base64'));
     const rawPCM = Buffer.concat(audioBuffers);
     const audioBase64 = rawPCM.toString('base64');
 
     // 3. Save audio to Supabase cache (fire-and-forget)
-    // Find the question key that matches this response text
-    saveAudioForText(text, audioBase64, sampleRate, bitsPerSample, mimeType);
+    saveAudioForText(text, audioBase64, sampleRate, bitsPerSample, result.mimeType);
 
     return NextResponse.json({
       audio: audioBase64,
       sampleRate,
       bitsPerSample,
       numChannels: 1,
-      mimeType,
+      mimeType: result.mimeType,
     });
   } catch (error) {
     console.error('TTS error:', error);
@@ -117,7 +146,6 @@ async function saveAudioForText(
   mimeType: string
 ) {
   try {
-    // Find question key by response text and save audio
     const { supabaseAdmin } = await import('@/lib/supabase');
     const { data } = await supabaseAdmin
       .from('response_cache')

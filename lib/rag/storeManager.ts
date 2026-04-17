@@ -19,20 +19,29 @@ export async function initStoreFromSupabase(): Promise<void> {
       .select('*')
       .order('created_at', { ascending: true });
 
-    if (error || !docs || docs.length === 0) {
+    if (error) throw error;
+    if (!docs || docs.length === 0) {
+      console.log('[storeManager] No documents found in Supabase.');
       isInitialized = true;
       return;
     }
 
+    console.log(`[storeManager] Initializing store from Supabase... found ${docs.length} documents.`);
+
     for (const doc of docs) {
+      console.log(`[storeManager] Loading document: ${doc.file_name} from ${doc.file_path}`);
       const { data: fileData, error: dlError } = await supabaseAdmin.storage
         .from('ops1-documents')
         .download(doc.file_path);
 
-      if (dlError || !fileData) continue;
+      if (dlError || !fileData) {
+        console.error(`[storeManager] Failed to download ${doc.file_name}:`, dlError);
+        continue;
+      }
 
       const buffer = Buffer.from(await fileData.arrayBuffer());
       const chunks = await extractAndChunk(buffer, doc.file_name);
+      console.log(`[storeManager] Extracted ${chunks.length} chunks from ${doc.file_name}`);
 
       const vectorItems: VectorItem[] = [];
       for (const chunk of chunks) {
@@ -43,6 +52,7 @@ export async function initStoreFromSupabase(): Promise<void> {
     }
 
     isInitialized = true;
+    console.log(`[storeManager] Initialization complete. Total chunks in store: ${getStoreSize()}`);
   } catch (err) {
     console.error('[storeManager] Init error:', err);
   }

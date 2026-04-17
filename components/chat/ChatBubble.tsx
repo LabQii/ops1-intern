@@ -94,11 +94,11 @@ export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlayi
       initial={{ opacity: 0, y: 12, scale: 0.97 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ type: 'spring', bounce: 0.3, duration: 0.4 }}
-      className={`flex items-end gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} max-w-2xl ${isUser ? 'ml-auto' : 'mr-auto'}`}
+      className={`flex items-end gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'} mb-4`}
     >
       {/* Avatar */}
       <div
-        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mb-1 ${
           isUser
             ? 'bg-gradient-to-br from-orange-primary to-orange-light'
             : 'bg-gradient-to-br from-blue-primary to-blue-light'
@@ -110,16 +110,16 @@ export default function ChatBubble({ message, ttsStatus = 'idle', isThisTTSPlayi
         }
       </div>
 
-      {/* Bubble + TTS button */}
-      <div className="group relative flex flex-col gap-1.5">
+      {/* Bubble + TTS button container */}
+      <div className={`flex flex-col gap-1.5 max-w-[85%] sm:max-w-[75%] ${isUser ? 'items-end' : 'items-start'}`}>
         <div
-          className={`px-5 py-3.5 rounded-[20px] text-[15px] leading-relaxed max-w-[90%] shadow-sm ${
+          className={`px-4 py-3 rounded-[20px] text-[15px] leading-relaxed w-fit shadow-md transition-all ${
             isUser
-              ? 'bg-gradient-to-br from-orange-primary/20 to-orange-primary/10 border border-orange-primary/20 text-white rounded-br-sm'
-              : 'bg-gradient-to-br from-white/10 to-white/5 border border-white/10 text-white rounded-bl-sm'
+              ? 'bg-gradient-to-br from-orange-primary/20 to-orange-primary/10 border border-orange-primary/25 text-white rounded-br-none'
+              : 'bg-gradient-to-br from-white/12 to-white/6 border border-white/12 text-white rounded-bl-none'
           }`}
         >
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1 break-words">
             {renderContent(message.content)}
             {message.isStreaming && (
               <motion.span
