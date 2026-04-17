@@ -2,13 +2,12 @@ import { NextRequest } from 'next/server';
 
 export const maxDuration = 60;
 import Groq from 'groq-sdk';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { retrieveContext } from '@/lib/rag/retrieval';
 import { getStoreSize } from '@/lib/rag/vectorStore';
 import { initStoreFromSupabase } from '@/lib/rag/storeManager';
 import { getCachedResponse, saveResponse } from '@/lib/cache/responseCache';
-import { groqKeys } from '@/lib/apiKeys';
-
-// We'll instantiate Groq dynamically in the POST handler
+import { groqKeys, geminiKeys } from '@/lib/apiKeys';
 
 const SYSTEM_PROMPT = `Kamu adalah OPS-1, AI yang punya kepribadian unik: kadang asik & jenaka, kadang puitis-galau (sad boi), tapi selalu seru diajak ngobrol.
 
@@ -48,6 +47,96 @@ Karaktermu:
 
 Format respons (selain format profile):
 - Gunakan sedikit sentuhan "galau-jenaka" dalam setiap jawabanmu.`;
+
+// ── Groq streaming — returns null if all keys are rate-limited ───────────────
+async function tryGroqStream(
+  messages: any[],
+  systemPrompt: string
+): Promise<AsyncIterable<any> | null> {
+  let attempts = groqKeys.getKeyCount();
+  while (attempts > 0) {
+    const currentKey = groqKeys.getCurrentKey();
+    const groq = new Groq({ apiKey: currentKey });
+    try {
+      const completion = await groq.chat.completions.create({
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        stream: true,
+        max_tokens: 2048,
+        temperature: 0.88,
+      });
+      console.log('Using Groq for inference');
+      return completion;
+    } catch (err: any) {
+      const status = err?.status;
+      const errMsg = err?.message || String(err);
+      const is429 =
+        status === 429 ||
+        errMsg.includes('429') ||
+        errMsg.includes('Too Many Requests') ||
+        errMsg.includes('rate_limit_exceeded');
+      if (is429) {
+        console.warn('Groq 429, rotating key...');
+        groqKeys.rotateOnRateLimit();
+        attempts--;
+        if (attempts <= 0) {
+          console.warn('All Groq keys exhausted, falling back to Gemini...');
+          return null;
+        }
+      } else {
+        throw err;
+      }
+    }
+  }
+  return null;
+}
+
+// ── Gemini streaming fallback ────────────────────────────────────────────────
+async function geminiStream(
+  messages: any[],
+  systemPrompt: string
+): Promise<AsyncIterable<string>> {
+  let attempts = geminiKeys.getKeyCount();
+  while (attempts > 0) {
+    const key = geminiKeys.getCurrentKey();
+    const genAI = new GoogleGenerativeAI(key);
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.0-flash',
+      systemInstruction: systemPrompt,
+    });
+
+    // Convert Groq-style history to Gemini format
+    const geminiHistory = messages.slice(0, -1).map((m: any) => ({
+      role: m.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: m.content }],
+    }));
+    const lastMsg = messages[messages.length - 1];
+
+    try {
+      const chat = model.startChat({ history: geminiHistory });
+      const result = await chat.sendMessageStream(lastMsg.content);
+      console.log('Using Gemini as fallback for inference');
+      return (async function* () {
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) yield text;
+        }
+      })();
+    } catch (err: any) {
+      const errMsg = err?.message || String(err);
+      if (errMsg.includes('429') || errMsg.includes('Too Many Requests')) {
+        console.warn('Gemini 429, rotating key...');
+        geminiKeys.rotateOnRateLimit();
+        attempts--;
+        if (attempts <= 0) throw new Error('All Gemini keys rate limited');
+      } else {
+        throw err;
+      }
+    }
+  }
+  throw new Error('All LLM keys exhausted');
+}
+
 export async function POST(request: NextRequest) {
   try {
     await initStoreFromSupabase();
@@ -78,83 +167,52 @@ export async function POST(request: NextRequest) {
           controller.close();
         },
       });
-
       return new Response(stream, {
-        headers: {
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          Connection: 'keep-alive',
-        },
+        headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
       });
     }
 
-    // 2. No cache — fetch from AI
+    // 2. Build context
     const hasDocuments = getStoreSize() > 0;
     const context = hasDocuments ? await retrieveContext(message) : '';
     const contextBlock = context
       ? `\n\n--- KONTEKS DARI DOKUMEN ---\n${context}\n--- AKHIR KONTEKS ---\n`
       : '';
+    const fullSystemPrompt = SYSTEM_PROMPT + contextBlock;
 
     const recentHistory = (history || []).slice(-6);
+    const chatMessages = [
+      ...recentHistory,
+      { role: 'user', content: message },
+    ];
 
-    let completion: any = null;
-    let attempts = groqKeys.getKeyCount();
+    // 3. Try Groq first, fallback to Gemini
+    const groqCompletion = await tryGroqStream(chatMessages, fullSystemPrompt);
 
-    while (attempts > 0) {
-      const currentKey = groqKeys.getCurrentKey();
-      const groq = new Groq({ apiKey: currentKey });
-
-      try {
-        completion = await groq.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT + contextBlock },
-            ...recentHistory,
-            { role: 'user', content: message },
-          ],
-          stream: true,
-          max_tokens: 2048,
-          temperature: 0.88,
-        });
-        break; // Success, exit loop
-      } catch (err: any) {
-        const errMsg = err?.message || String(err);
-        const status = err?.status;
-        if (
-          status === 429 ||
-          errMsg.includes('429') ||
-          errMsg.includes('Too Many Requests') ||
-          errMsg.includes('rate limit')
-        ) {
-          console.warn('Groq 429 on current key, rotating...');
-          const nextKey = groqKeys.rotateOnRateLimit();
-          if (!nextKey) throw err; // No more keys available
-          attempts--;
-        } else {
-          throw err; // Other types of errors (e.g. 500, network error)
-        }
-      }
-    }
-
-    if (!completion) {
-      throw new Error('All Groq keys rate limited');
-    }
-
-    // 3. Stream + collect for caching
     let fullResponse = '';
     const encoder = new TextEncoder();
+
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of completion) {
-            const text = chunk.choices[0]?.delta?.content || '';
-            if (text) {
+          if (groqCompletion) {
+            // ── Groq path ──
+            for await (const chunk of groqCompletion) {
+              const text = chunk.choices[0]?.delta?.content || '';
+              if (text) {
+                fullResponse += text;
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
+              }
+            }
+          } else {
+            // ── Gemini fallback path ──
+            const geminiIter = await geminiStream(chatMessages, fullSystemPrompt);
+            for await (const text of geminiIter) {
               fullResponse += text;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`));
             }
           }
 
-          // Save to Supabase cache (fire-and-forget)
           if (fullResponse.trim()) {
             saveResponse(message, fullResponse).catch((err) =>
               console.error('Cache save failed:', err)
@@ -170,11 +228,7 @@ export async function POST(request: NextRequest) {
     });
 
     return new Response(stream, {
-      headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        Connection: 'keep-alive',
-      },
+      headers: { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' },
     });
   } catch (error) {
     console.error('Chat error:', error);
