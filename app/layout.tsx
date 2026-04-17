@@ -35,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className="antialiased selection:bg-orange-primary/30 selection:text-white">
+      <body className="antialiased selection:bg-orange-primary/30 selection:text-white transition-colors duration-300">
         <ThemeProvider>
           <Navbar />
           <main>{children}</main>

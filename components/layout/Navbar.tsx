@@ -18,13 +18,12 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const { theme } = useTheme();
-  
+
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300 border-b ${
-      theme === 'dark' 
-        ? 'bg-navy-dark/90 border-white/10' 
-        : 'bg-white/90 border-black/5 shadow-sm'
-    }`}>
+    <nav className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-md transition-colors duration-300 border-b ${theme === 'dark'
+      ? 'bg-navy-dark/90 border-white/10'
+      : 'bg-white/90 border-black/5 shadow-sm'
+      }`}>
       <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-1.5 group font-sans">
@@ -50,11 +49,10 @@ export default function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${
-                  isActive 
-                    ? (theme === 'dark' ? 'text-orange-primary' : 'text-orange-primary') 
-                    : (theme === 'dark' ? 'text-white/60 hover:text-white' : 'text-black/60 hover:text-black')
-                }`}
+                className={`relative px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center ${isActive
+                  ? 'text-orange-primary'
+                  : (theme === 'dark' ? 'text-white/60 hover:text-white' : 'text-black/60 hover:text-black')
+                  }`}
               >
                 {isActive && (
                   <motion.span
@@ -77,17 +75,15 @@ export default function Navbar() {
         </div>
 
         {/* Desktop Theme Toggle */}
-        <div className={`hidden md:flex items-center ml-2 border-l pl-4 transition-colors ${
-          theme === 'dark' ? 'border-white/10' : 'border-black/10'
-        }`}>
+        <div className={`hidden md:flex items-center ml-2 border-l pl-4 transition-colors ${theme === 'dark' ? 'border-white/10' : 'border-black/10'
+          }`}>
           <ThemeToggle />
         </div>
 
         {/* Mobile hamburger */}
         <button
-          className={`md:hidden w-10 h-10 flex items-center justify-center transition-colors ${
-            theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-black/70 hover:text-black'
-          }`}
+          className={`md:hidden w-10 h-10 flex items-center justify-center transition-colors ${theme === 'dark' ? 'text-white/70 hover:text-white' : 'text-black/70 hover:text-black'
+            }`}
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
         >
@@ -113,9 +109,8 @@ export default function Navbar() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '-100%', opacity: 0 }}
             transition={{ type: 'spring', bounce: 0, duration: 0.35 }}
-            className={`md:hidden fixed top-16 left-0 bottom-0 w-72 border-r p-6 flex flex-col gap-2 transition-colors ${
-              theme === 'dark' ? 'bg-navy-dark border-white/10' : 'bg-white border-black/5 shadow-xl'
-            }`}
+            className={`md:hidden fixed top-16 left-0 bottom-0 w-72 border-r p-6 flex flex-col gap-2 transition-colors ${theme === 'dark' ? 'bg-navy-dark border-white/10' : 'bg-white border-black/5 shadow-xl'
+              }`}
           >
             {NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href;
@@ -124,21 +119,20 @@ export default function Navbar() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMenuOpen(false)}
-                  className={`px-4 py-3 rounded-xl text-base font-medium transition-all ${
-                    isActive
-                      ? (theme === 'dark' 
-                          ? 'bg-orange-primary/15 text-orange-primary border border-orange-primary/30' 
-                          : 'bg-orange-primary/10 text-orange-primary border border-orange-primary/20')
-                      : (theme === 'dark' 
-                          ? 'text-white/60 hover:text-white hover:bg-white/5' 
-                          : 'text-black/60 hover:text-black hover:bg-black/5')
+                  className={`px-4 py-3 rounded-xl text-base font-medium transition-all ${isActive
+                    ? (theme === 'dark'
+                      ? 'bg-orange-primary/15 text-orange-primary border border-orange-primary/30'
+                      : 'bg-orange-primary/10 text-orange-primary border border-orange-primary/20')
+                    : (theme === 'dark'
+                      ? 'text-white/60 hover:text-white hover:bg-white/5'
+                      : 'text-black/60 hover:text-black hover:bg-black/5')
                     }`}
                 >
                   {item.label}
                 </Link>
               );
             })}
-            
+
             <div className={`mt-4 pt-4 border-t ${theme === 'dark' ? 'border-white/10' : 'border-black/10'}`}>
               <div className="flex items-center justify-between px-4 py-3">
                 <span className={`text-sm font-medium ${theme === 'dark' ? 'text-white/60' : 'text-black/60'}`}>Tampilan</span>
@@ -158,11 +152,10 @@ function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all border group overflow-hidden ${
-        theme === 'dark' 
-          ? 'bg-white/5 hover:bg-white/10 border-white/10' 
-          : 'bg-black/5 hover:bg-black/10 border-black/10 shadow-sm'
-      }`}
+      className={`relative w-10 h-10 flex items-center justify-center rounded-xl transition-all border group overflow-hidden ${theme === 'dark'
+        ? 'bg-white/5 hover:bg-white/10 border-white/10'
+        : 'bg-black/5 hover:bg-black/10 border-black/10 shadow-sm'
+        }`}
       aria-label="Ganti Tema"
     >
       <AnimatePresence mode="wait" initial={false}>
