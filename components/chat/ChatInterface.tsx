@@ -29,6 +29,42 @@ const MODE_LABELS: Record<TTSMode, string> = {
   synthetic: 'Browser',
 };
 
+// Keywords that trigger the intro video before AI responds
+const INTRO_VIDEO_TRIGGERS = [
+  'siapa kamu', 'siapa anda', 'kamu siapa', 'anda siapa',
+  'perkenalkan diri', 'perkenalan', 'who are you',
+  'tentang kamu', 'tentang anda', 'kenalin diri', 'kamu itu siapa',
+  'kamu itu apa sih', 'sebenernya kamu siapa', 'lo siapa', 'kamu itu siapa sih'
+];
+
+function shouldPlayIntroVideo(message: string): boolean {
+  const normalized = message.toLowerCase().trim().replace(/[?!.,]/g, '');
+  return INTRO_VIDEO_TRIGGERS.some((trigger) => normalized.includes(trigger));
+}
+
+// Keywords that trigger a video AFTER the AI voice finishes
+const AFTER_TTS_VIDEO_TRIGGERS = [
+  'punya pacar', 'pacar kamu', 'pacarmu', 'pacaran',
+  'ada pacar', 'lagi jomblo', 'single', 'punya gebetan',
+];
+
+const CREATOR_VIDEO_TRIGGERS = [
+  'siapa yg buat lo', 'siapa yang buat', 'buat lo', 'siapa aja anggota ops intern',
+  'tim ops intern', 'pencipta', 'developer'
+];
+
+const INTRO_VIDEO_URL = '/intro.mp4';
+const PACAR_VIDEO_URL = '/pacar.mp4';
+const CREATOR_VIDEO_URL = '/creator.mp4';
+
+function getPostTTSVideoUrl(message: string): string | null {
+  const normalized = message.toLowerCase().trim().replace(/[?!.,]/g, '');
+  if (AFTER_TTS_VIDEO_TRIGGERS.some((trigger) => normalized.includes(trigger))) {
+    return PACAR_VIDEO_URL;
+  }
+  return null;
+}
+
 export default function ChatInterface() {
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
@@ -38,8 +74,15 @@ export default function ChatInterface() {
   const [autoTTS, setAutoTTS] = useState(true);
   const [showModeMenu, setShowModeMenu] = useState(false);
   const [abortController, setAbortController] = useState<AbortController | null>(null);
+  const [introVideoPlaying, setIntroVideoPlaying] = useState(false);
+  const [postTTSVideoUrl, setPostTTSVideoUrl] = useState<string | null>(null);
+  const pendingSendRef = useRef<string | null>(null);
+  const pendingPostTTSVideoRef = useRef<string | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const postVideoRef = useRef<HTMLVideoElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const lastFinishedIdRef = useRef<string | null>(null);
+  const prevTTSStatusRef = useRef<string>('idle');
 
   const { status: ttsStatus, playingMessageId, mode: ttsMode, setMode: setTTSMode, play: playTTS, stop: stopTTS, analyserRef } = useTTS();
 
@@ -70,7 +113,6 @@ export default function ChatInterface() {
   useEffect(() => { playTTSRef.current = playTTS; }, [playTTS]);
 
   // Auto-play TTS for new assistant messages (non-welcome)
-  // Uses ref for playTTS to avoid re-triggering when mode changes
   useEffect(() => {
     if (!autoTTS) return;
 
@@ -86,6 +128,17 @@ export default function ChatInterface() {
     }
   }, [messages, autoTTS]);
 
+  // Watch TTS status: when it goes from 'playing' → 'idle' and there's a pending post-TTS video
+  useEffect(() => {
+    if (prevTTSStatusRef.current === 'playing' && ttsStatus === 'idle' && pendingPostTTSVideoRef.current) {
+      const url = pendingPostTTSVideoRef.current;
+      pendingPostTTSVideoRef.current = null;
+      // Small delay so the fullscreen character overlay closes first
+      setTimeout(() => setPostTTSVideoUrl(url), 400);
+    }
+    prevTTSStatusRef.current = ttsStatus;
+  }, [ttsStatus]);
+
   const addToast = useCallback((type: ToastMessage['type'], message: string) => {
     const id = generateId();
     setToasts((prev) => [...prev, { id, type, message }]);
@@ -95,7 +148,8 @@ export default function ChatInterface() {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  const handleSend = async (userMessage: string) => {
+  // Actually send the message to the AI (called after video or directly)
+  const doSend = useCallback(async (userMessage: string) => {
     const userMsg: Message = {
       id: generateId(),
       role: 'user',
@@ -104,6 +158,11 @@ export default function ChatInterface() {
     };
 
     stopTTS();
+    // Check if this message should trigger a post-TTS video
+    const postTTSUrl = getPostTTSVideoUrl(userMessage);
+    if (postTTSUrl) {
+      pendingPostTTSVideoRef.current = postTTSUrl;
+    }
     setMessages((prev) => [...prev, userMsg]);
     setIsTyping(true);
 
@@ -186,7 +245,54 @@ export default function ChatInterface() {
       setMessages((prev) => prev.map((m) => (m.id === assistantId ? { ...m, isStreaming: false } : m)));
       setAbortController(null);
     }
-  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stopTTS, messages, addToast]);
+
+  // Wrapper: handle interceptors (direct video, intro video, normal send)
+  const handleSend = useCallback((userMessage: string) => {
+    const normalized = userMessage.toLowerCase().trim().replace(/[?!.,]/g, '');
+    
+    // 1. Direct video: skip AI response, show video right away
+    if (CREATOR_VIDEO_TRIGGERS.some((trigger) => normalized.includes(trigger))) {
+      const userMsg: Message = {
+        id: generateId(),
+        role: 'user',
+        content: userMessage,
+        timestamp: new Date(),
+      };
+      stopTTS();
+      setMessages((prev) => [...prev, userMsg]);
+      setPostTTSVideoUrl(CREATOR_VIDEO_URL);
+      return;
+    }
+
+    // 2. Intro video: play video first, then send to AI
+    if (shouldPlayIntroVideo(userMessage)) {
+      pendingSendRef.current = userMessage;
+      setIntroVideoPlaying(true);
+      return;
+    }
+
+    // 3. Normal
+    doSend(userMessage);
+  }, [doSend, stopTTS]);
+
+  // When intro video ends, continue with the AI send
+  const handleVideoEnd = useCallback(() => {
+    setIntroVideoPlaying(false);
+    if (pendingSendRef.current) {
+      const msg = pendingSendRef.current;
+      pendingSendRef.current = null;
+      doSend(msg);
+    }
+  }, [doSend]);
+
+  const handleSkipVideo = useCallback(() => {
+    if (videoRef.current) {
+      videoRef.current.pause();
+    }
+    handleVideoEnd();
+  }, [handleVideoEnd]);
 
   const handleStop = useCallback(() => {
     if (abortController) {
@@ -429,6 +535,83 @@ export default function ChatInterface() {
                 <rect x="3" y="3" width="10" height="10" rx="2" />
               </svg>
               <span className="text-sm font-medium tracking-wide">Hentikan</span>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fullscreen Intro Video Overlay */}
+      <AnimatePresence>
+        {introVideoPlaying && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black"
+          >
+            <video
+              ref={videoRef}
+              src={INTRO_VIDEO_URL}
+              autoPlay
+              playsInline
+              onEnded={handleVideoEnd}
+              className="w-full h-full object-contain"
+            />
+
+            {/* Skip button */}
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.5 }}
+              onClick={handleSkipVideo}
+              className="absolute bottom-8 right-8 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-white/70 hover:text-white hover:bg-white/20 transition-all backdrop-blur-sm cursor-pointer text-sm font-medium"
+            >
+              Lewati
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M3 2l6 5-6 5" />
+                <line x1="11" y1="2" x2="11" y2="12" />
+              </svg>
+            </motion.button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Fullscreen Post-TTS Video Overlay (plays AFTER voice finishes) */}
+      <AnimatePresence>
+        {postTTSVideoUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center bg-black"
+          >
+            <video
+              ref={postVideoRef}
+              src={postTTSVideoUrl}
+              autoPlay
+              playsInline
+              onEnded={() => setPostTTSVideoUrl(null)}
+              className="w-full h-full object-contain"
+            />
+
+            {/* Skip button */}
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.5 }}
+              onClick={() => {
+                if (postVideoRef.current) postVideoRef.current.pause();
+                setPostTTSVideoUrl(null);
+              }}
+              className="absolute bottom-8 right-8 flex items-center gap-2 px-5 py-2.5 rounded-full bg-white/10 border border-white/20 text-white/70 hover:text-white hover:bg-white/20 transition-all backdrop-blur-sm cursor-pointer text-sm font-medium"
+            >
+              Lewati
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+                <path d="M3 2l6 5-6 5" />
+                <line x1="11" y1="2" x2="11" y2="12" />
+              </svg>
             </motion.button>
           </motion.div>
         )}

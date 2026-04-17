@@ -1,4 +1,4 @@
-// Flat SVG icon library untuk OPS-1 IZIN TAMPIL
+// Flat SVG icon library untuk OPS-1 Intern
 // Semua icon menggunakan stroke-based design, minimalist & elegant
 
 interface IconProps {
