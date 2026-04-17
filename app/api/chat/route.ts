@@ -1,4 +1,6 @@
 import { NextRequest } from 'next/server';
+
+export const maxDuration = 60;
 import Groq from 'groq-sdk';
 import { retrieveContext } from '@/lib/rag/retrieval';
 import { getStoreSize } from '@/lib/rag/vectorStore';

@@ -2,7 +2,7 @@
 const nextConfig = {
   // Treat pdf-parse as an external package so Next.js doesn't try to bundle it.
   // Required for Vercel serverless compatibility.
-  serverExternalPackages: ['pdf-parse'],
+  serverExternalPackages: ['pdf-parse', 'pdfjs-dist'],
 
   // Turbopack config (used by Next.js 16+ dev server)
   turbopack: {

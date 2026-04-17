@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+
+export const maxDuration = 60;
 import { supabaseAdmin } from '@/lib/supabase';
 import { extractAndChunk } from '@/lib/rag/pdfParser';
 import { generateEmbedding } from '@/lib/rag/embeddings';
